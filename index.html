@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZenFit - Dinginlik ve Disiplin</title>
+    <meta name="description" content="Zen felsefesi ile koşu ve sağlık takibi. 3 gün dinlen, 1 gün koş." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#121412" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+  </head>
+  <body>
+    <div id="app">
+      <nav>
+        <div class="logo">
+          <h2 style="color: var(--primary-sage); font-weight: 300;">ZEN<span style="font-weight: 600; color: var(--text-silk);">FIT</span></h2>
+        </div>
+        <div class="nav-links">
+          <a class="nav-link active" data-page="home">
+            <span class="nav-icon">🏠</span>
+            <span>Ana Sayfa</span>
+          </a>
+          <a class="nav-link" data-page="calendar">
+            <span class="nav-icon">📅</span>
+            <span>Akış</span>
+          </a>
+          <a class="nav-link" data-page="coach">
+            <span class="nav-icon">🧘‍♂️</span>
+            <span>Sensei</span>
+          </a>
+          <a class="nav-link" data-page="wiki">
+            <span class="nav-icon">📖</span>
+            <span>Rehber</span>
+          </a>
+          <a class="nav-link" data-page="settings">
+            <span class="nav-icon">⚙️</span>
+            <span>Ayarlar</span>
+          </a>
+        </div>
+      </nav>
+
+      <main id="main-content">
+        <!-- İçerik JavaScript ile dinamik olarak yüklenecek -->
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+  </body>
+</html>

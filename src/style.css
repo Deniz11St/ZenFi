@@ -27,7 +27,7 @@
 
 body {
   background-color: var(--bg-dark);
-  background-image: linear-gradient(rgba(18, 20, 18, 0.85), rgba(18, 20, 18, 0.85)), url('/zen-bg.png');
+  background-image: linear-gradient(rgba(18, 20, 18, 0.85), rgba(18, 20, 18, 0.85)), url('../zen-bg.png');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

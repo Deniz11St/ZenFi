@@ -2,13 +2,15 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZenFit - Dinginlik ve Disiplin</title>
     <meta name="description" content="Zen felsefesi ile koşu ve sağlık takibi. 3 gün dinlen, 1 gün koş." />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="theme-color" content="#121412" />
-    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="apple-touch-icon" href="./icon.png" />
+    <link rel="stylesheet" href="./src/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
     <div id="app">
@@ -44,11 +46,11 @@
         <!-- İçerik JavaScript ile dinamik olarak yüklenecek -->
       </main>
     </div>
-    <script type="module" src="/src/main.js"></script>
+    <script src="./src/main.js"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
+          navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed'));
         });
       }
     </script>

@@ -1,5 +1,5 @@
-import './style.css'
-import Chart from 'chart.js/auto'
+// import './style.css'
+// import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -122,7 +122,7 @@ const pages = {
   },
   coach: () => `
     <div class="glass-panel" style="padding: 2rem; min-height: 500px; display: flex; flex-direction: column; align-items: center;">
-      <img src="/sensei.png" class="sensei-avatar" alt="Sensei">
+      <img src="./sensei.png" class="sensei-avatar" alt="Sensei">
       <h3 style="margin-bottom: 0.5rem;">SENSEI</h3>
       <p class="dimmed" style="margin-bottom: 2rem;">Dinginlikte güç, harekette huzur bul.</p>
       

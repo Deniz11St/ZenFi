@@ -233,7 +233,8 @@ const attachEvents = () => {
   // Nav
   document.querySelectorAll('.nav-link').forEach(link => {
     link.onclick = (e) => {
-      state.currentPage = e.target.dataset.page;
+      e.preventDefault();
+      state.currentPage = link.dataset.page;
       render();
     };
   });

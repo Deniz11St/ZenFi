@@ -2,13 +2,13 @@
   "name": "ZenFit - Dinginlik ve Disiplin",
   "short_name": "ZenFit",
   "description": "Zen felsefesi ile koşu ve sağlıklı yaşam takibi.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#121412",
   "theme_color": "#121412",
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "./icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

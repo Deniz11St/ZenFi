@@ -2,6 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
+const APP_VERSION = '1.0.4';
 const state = {
   currentPage: 'home',
   runs: JSON.parse(localStorage.getItem('zenfit_runs')) || [],
@@ -174,16 +175,16 @@ const pages = {
         </form>
       </div>
 
-      <div class="glass-panel" style="padding: 2rem;">
-        <h3>UYGULAMA</h3>
-        <p class="dimmed" style="margin-bottom: 1.5rem;">Güncellemeleri denetle ve önbelleği temizle.</p>
-        <button id="update-app-btn" class="zen-btn warrior" style="width: 100%;">UYGULAMAYI GÜNCELLE</button>
-      </div>
-
       <div class="glass-panel" style="padding: 2rem; grid-column: span 2;">
         <h3>KİLO DEĞİŞİMİ</h3>
         <canvas id="weightChart" style="width: 100%; height: 200px;"></canvas>
       </div>
+    </div>
+    
+    <div class="glass-panel" style="padding: 2rem; margin-top: 2rem; text-align: center;">
+      <h3>SİSTEM</h3>
+      <p class="dimmed" style="margin-bottom: 0.5rem;">Mevcut Versiyon: v${APP_VERSION}</p>
+      <button id="check-update-btn" class="zen-btn warrior" style="width: 100%; max-width: 300px; margin-top: 1rem;">GÜNCELLEMEYİ DENETLE</button>
     </div>
   `
 };
@@ -275,28 +276,41 @@ const attachEvents = () => {
   }
 
   // Update App
-  const updateBtn = document.getElementById('update-app-btn');
-  if (updateBtn) {
-    updateBtn.onclick = async () => {
-      updateBtn.innerText = 'GÜNCELLENİYOR...';
+  const checkUpdateBtn = document.getElementById('check-update-btn');
+  if (checkUpdateBtn) {
+    checkUpdateBtn.onclick = async () => {
+      checkUpdateBtn.innerText = 'DENETLENİYOR...';
       try {
-        if ('serviceWorker' in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          for (let reg of registrations) {
-            await reg.unregister();
+        const response = await fetch('./package.json?t=' + new Date().getTime());
+        if (response.ok) {
+          const data = await response.json();
+          if (data.version && data.version !== APP_VERSION) {
+            const wantUpdate = confirm('Yeni bir versiyon bulundu (v' + data.version + ')! Uygulamayı şimdi güncellemek istiyor musunuz?');
+            if (wantUpdate) {
+              checkUpdateBtn.innerText = 'GÜNCELLENİYOR...';
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (let reg of regs) await reg.unregister();
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                for (let key of keys) await caches.delete(key);
+              }
+              window.location.reload(true);
+            } else {
+              checkUpdateBtn.innerText = 'GÜNCELLEMEYİ DENETLE';
+            }
+          } else {
+            alert('Uygulamanız zaten güncel (v' + APP_VERSION + ')');
+            checkUpdateBtn.innerText = 'GÜNCELLEMEYİ DENETLE';
           }
+        } else {
+          throw new Error('Fetch failed');
         }
-        if ('caches' in window) {
-          const keys = await caches.keys();
-          for (let key of keys) {
-            await caches.delete(key);
-          }
-        }
-        // Sayfayı yenile ve sunucudan çek
-        window.location.reload(true);
       } catch (err) {
         console.error('Güncelleme hatası:', err);
-        updateBtn.innerText = 'HATA OLUŞTU';
+        alert('Güncelleme denetlenirken bir hata oluştu. Bağlantınızı kontrol edin.');
+        checkUpdateBtn.innerText = 'GÜNCELLEMEYİ DENETLE';
       }
     };
   }

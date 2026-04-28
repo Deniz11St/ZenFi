@@ -175,6 +175,12 @@ const pages = {
       </div>
 
       <div class="glass-panel" style="padding: 2rem;">
+        <h3>UYGULAMA</h3>
+        <p class="dimmed" style="margin-bottom: 1.5rem;">Güncellemeleri denetle ve önbelleği temizle.</p>
+        <button id="update-app-btn" class="zen-btn warrior" style="width: 100%;">UYGULAMAYI GÜNCELLE</button>
+      </div>
+
+      <div class="glass-panel" style="padding: 2rem; grid-column: span 2;">
         <h3>KİLO DEĞİŞİMİ</h3>
         <canvas id="weightChart" style="width: 100%; height: 200px;"></canvas>
       </div>
@@ -265,6 +271,33 @@ const attachEvents = () => {
       state.profile.weightHistory.push({ date: new Date().toISOString(), weight: newWeight });
       saveState();
       render();
+    };
+  }
+
+  // Update App
+  const updateBtn = document.getElementById('update-app-btn');
+  if (updateBtn) {
+    updateBtn.onclick = async () => {
+      updateBtn.innerText = 'GÜNCELLENİYOR...';
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (let reg of registrations) {
+            await reg.unregister();
+          }
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (let key of keys) {
+            await caches.delete(key);
+          }
+        }
+        // Sayfayı yenile ve sunucudan çek
+        window.location.reload(true);
+      } catch (err) {
+        console.error('Güncelleme hatası:', err);
+        updateBtn.innerText = 'HATA OLUŞTU';
+      }
     };
   }
 

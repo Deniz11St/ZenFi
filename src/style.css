@@ -314,3 +314,78 @@ input:focus {
     font-size: 0.9rem;
   }
 }
+
+.calendar-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.calendar-day-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  transition: var(--transition-smooth);
+}
+.calendar-day-row:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: var(--primary-sage);
+}
+.day-label {
+  min-width: 60px;
+  text-align: center;
+  color: var(--primary-sage);
+  line-height: 1.2;
+}
+.day-inputs {
+  display: flex;
+  gap: 1.5rem;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+}
+.day-inputs::-webkit-scrollbar {
+  display: none;
+}
+.input-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.input-col input {
+  padding: 0.6rem 0.2rem;
+  font-size: 1rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  width: 90px;
+  border-radius: 8px;
+}
+.input-col small {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .calendar-day-row {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .day-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 0.5rem;
+    text-align: left;
+  }
+  .day-label div {
+    display: inline-block;
+  }
+}

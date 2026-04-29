@@ -2,15 +2,20 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.6';
 const state = {
   currentPage: 'home',
+  calendarDate: new Date().toISOString(),
   runs: JSON.parse(localStorage.getItem('zenfit_runs')) || [],
   profile: JSON.parse(localStorage.getItem('zenfit_profile')) || {
     weight: 80,
     height: 180,
     weightHistory: [{ date: new Date().toISOString(), weight: 80 }],
     startDate: new Date().toISOString()
+  },
+  plan: JSON.parse(localStorage.getItem('zenfit_plan')) || {
+    runDays: 1,
+    restDays: 3
   },
   timer: {
     isRunning: false,
@@ -22,9 +27,61 @@ const state = {
   ]
 };
 
+window.changeMonth = (delta) => {
+  const d = state.calendarDate ? new Date(state.calendarDate) : new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + delta);
+  state.calendarDate = d.toISOString();
+  render();
+};
+
+window.updateDayData = (dateStr, field, value) => {
+  const parts = dateStr.split('-');
+  const localDate = new Date(parts[0], parts[1]-1, parts[2], 12);
+  const isoDate = localDate.toISOString();
+  
+  if (field === 'weight') {
+    let w = state.profile.weightHistory.find(w => {
+      const wd = new Date(w.date);
+      return wd.getFullYear() == parts[0] && wd.getMonth() == parts[1]-1 && wd.getDate() == parts[2];
+    });
+    
+    if (w) w.weight = value;
+    else if (value) state.profile.weightHistory.push({date: isoDate, weight: value});
+    
+    if (!value && w) {
+      state.profile.weightHistory = state.profile.weightHistory.filter(item => item !== w);
+    }
+    
+    state.profile.weightHistory.sort((a,b) => new Date(a.date) - new Date(b.date));
+    if (state.profile.weightHistory.length > 0) {
+      state.profile.weight = state.profile.weightHistory[state.profile.weightHistory.length-1].weight;
+    }
+  } else {
+    let r = state.runs.find(r => {
+      const rd = new Date(r.date);
+      return rd.getFullYear() == parts[0] && rd.getMonth() == parts[1]-1 && rd.getDate() == parts[2];
+    });
+    
+    if (!r && value) {
+      r = { date: isoDate, distance: '', duration: '', speed: '' };
+      state.runs.push(r);
+    }
+    if (r) {
+      r[field] = value;
+      if (!r.distance && !r.duration && !r.speed) {
+        state.runs = state.runs.filter(run => run !== r);
+      }
+    }
+    state.runs.sort((a,b) => new Date(a.date) - new Date(b.date));
+  }
+  saveState();
+};
+
 const saveState = () => {
   localStorage.setItem('zenfit_runs', JSON.stringify(state.runs));
   localStorage.setItem('zenfit_profile', JSON.stringify(state.profile));
+  localStorage.setItem('zenfit_plan', JSON.stringify(state.plan));
 };
 
 // --- UTILS ---
@@ -38,7 +95,8 @@ const calculateNextRun = () => {
   if (state.runs.length === 0) return new Date();
   const lastRun = new Date(state.runs[state.runs.length - 1].date);
   const nextRun = new Date(lastRun);
-  nextRun.setDate(lastRun.getDate() + 4);
+  const cycleLength = parseInt(state.plan.runDays) + parseInt(state.plan.restDays);
+  nextRun.setDate(lastRun.getDate() + cycleLength);
   return nextRun;
 };
 
@@ -85,38 +143,55 @@ const pages = {
     </div>
   `,
   calendar: () => {
-    const nextDates = [];
-    let current = calculateNextRun();
-    for(let i=0; i<5; i++) {
-      nextDates.push(new Date(current));
-      current.setDate(current.getDate() + 4);
+    const today = state.calendarDate ? new Date(state.calendarDate) : new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    let daysHtml = '';
+    for(let i = 1; i <= daysInMonth; i++) {
+       const currentDay = new Date(year, month, i);
+       const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+       
+       const run = state.runs.find(r => {
+         const runDate = new Date(r.date);
+         return runDate.getFullYear() === year && runDate.getMonth() === month && runDate.getDate() === i;
+       }) || { distance: '', duration: '', speed: '' };
+       
+       const weightObj = state.profile.weightHistory.find(w => {
+         const wDate = new Date(w.date);
+         return wDate.getFullYear() === year && wDate.getMonth() === month && wDate.getDate() === i;
+       });
+       const weight = weightObj ? weightObj.weight : '';
+       
+       const dayOfWeek = currentDay.toLocaleDateString('tr-TR', {weekday: 'short'});
+       
+       daysHtml += `
+         <div class="calendar-day-row">
+           <div class="day-label">
+             <div style="font-size: 1.5rem; font-weight: 600;">${i}</div>
+             <div style="font-size: 0.8rem; text-transform: uppercase;">${dayOfWeek}</div>
+           </div>
+           <div class="day-inputs">
+             <div class="input-col"><small class="dimmed">Mesafe (km)</small><input type="number" step="0.1" placeholder="0" value="${run.distance || ''}" onchange="updateDayData('${dateStr}', 'distance', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Süre (dk)</small><input type="number" placeholder="0" value="${run.duration || ''}" onchange="updateDayData('${dateStr}', 'duration', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Hız (km/s)</small><input type="number" step="0.1" placeholder="0" value="${run.speed || ''}" onchange="updateDayData('${dateStr}', 'speed', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Kilo (kg)</small><input type="number" step="0.1" placeholder="0" value="${weight || ''}" onchange="updateDayData('${dateStr}', 'weight', this.value)"></div>
+           </div>
+         </div>
+       `;
     }
-
+    
     return `
-      <div class="glass-panel" style="padding: 2rem;">
-        <h3>AKIŞ TAKVİMİ</h3>
-        <p class="dimmed">3 Gün Dinlenme, 1 Gün Disiplin.</p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
-          <div>
-            <h4 class="dimmed" style="margin-bottom: 1rem;">GEÇMİŞ KOŞULAR</h4>
-            <div style="max-height: 400px; overflow-y: auto;">
-              ${state.runs.slice().reverse().map(run => `
-                <div style="padding: 1rem; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between;">
-                  <span>${new Date(run.date).toLocaleDateString('tr-TR')}</span>
-                  <span><strong>${run.distance} km</strong> / ${run.duration} dk</span>
-                </div>
-              `).join('') || '<p class="dimmed">Henüz kayıt yok.</p>'}
-            </div>
-          </div>
-          <div>
-            <h4 class="dimmed" style="margin-bottom: 1rem;">PLANLANAN AKIŞ</h4>
-            ${nextDates.map(date => `
-              <div style="padding: 1rem; border-bottom: 1px solid var(--glass-border); color: var(--primary-sage);">
-                <span style="display: inline-block; width: 20px; height: 20px; border: 1px solid var(--primary-sage); border-radius: 50%; margin-right: 10px;"></span>
-                ${date.toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </div>
-            `).join('')}
-          </div>
+      <div class="glass-panel" style="padding: 1rem 2rem 2rem 2rem; overflow: hidden; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding: 1.5rem 0; border-bottom: 1px solid var(--glass-border); position: sticky; top: 0; background: var(--bg-card); backdrop-filter: blur(20px); z-index: 10; margin-left: -2rem; margin-right: -2rem; padding-left: 2rem; padding-right: 2rem;">
+          <button class="zen-btn" onclick="changeMonth(-1)">&larr; ÖNCEKİ</button>
+          <h3 style="margin: 0; color: var(--primary-sage);">${today.toLocaleDateString('tr-TR', {month: 'long', year: 'numeric'}).toUpperCase()}</h3>
+          <button class="zen-btn" onclick="changeMonth(1)">SONRAKİ &rarr;</button>
+        </div>
+        <div class="calendar-vertical">
+          ${daysHtml}
         </div>
       </div>
     `;
@@ -172,6 +247,21 @@ const pages = {
             <input type="number" id="set-height" value="${state.profile.height}">
           </div>
           <button type="submit" class="zen-btn warrior" style="width: 100%;">GÜNCELLE</button>
+        </form>
+      </div>
+
+      <div class="glass-panel" style="padding: 2rem;">
+        <h3>AKIŞ PLANI (DÖNGÜ)</h3>
+        <form id="plan-form" style="margin-top: 1.5rem;">
+          <div class="input-group">
+            <label>Koşu (Disiplin) Günü</label>
+            <input type="number" id="set-run-days" value="${state.plan.runDays}" min="1">
+          </div>
+          <div class="input-group">
+            <label>Dinlenme Günü</label>
+            <input type="number" id="set-rest-days" value="${state.plan.restDays}" min="0">
+          </div>
+          <button type="submit" class="zen-btn warrior" style="width: 100%;">PLANI GÜNCELLE</button>
         </form>
       </div>
 
@@ -239,6 +329,19 @@ const attachEvents = () => {
     };
   });
 
+  // Horizontal Scroll with Mouse Wheel
+  document.querySelectorAll('.day-inputs').forEach(el => {
+    el.addEventListener('wheel', (e) => {
+      if (el.scrollWidth > el.clientWidth) {
+        if ((e.deltaY > 0 && el.scrollLeft < el.scrollWidth - el.clientWidth) ||
+            (e.deltaY < 0 && el.scrollLeft > 0)) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaY;
+        }
+      }
+    });
+  });
+
   // Timer
   const timerBtn = document.getElementById('start-stop-btn');
   if (timerBtn) {
@@ -271,6 +374,18 @@ const attachEvents = () => {
       state.profile.weight = newWeight;
       state.profile.height = document.getElementById('set-height').value;
       state.profile.weightHistory.push({ date: new Date().toISOString(), weight: newWeight });
+      saveState();
+      render();
+    };
+  }
+
+  // Plan Settings
+  const planForm = document.getElementById('plan-form');
+  if (planForm) {
+    planForm.onsubmit = (e) => {
+      e.preventDefault();
+      state.plan.runDays = document.getElementById('set-run-days').value;
+      state.plan.restDays = document.getElementById('set-rest-days').value;
       saveState();
       render();
     };

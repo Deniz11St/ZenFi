@@ -396,3 +396,64 @@ input:focus {
   font-weight: 300;
   text-shadow: 0 0 5px rgba(139, 168, 136, 0.1);
 }
+
+/* Month Selector Strip CSS */
+.month-selector-strip {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 100px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.month-selector-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.month-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: var(--transition-smooth);
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 80px;
+  border-radius: 100px;
+}
+
+.month-tab.active {
+  opacity: 1;
+  color: var(--primary-sage);
+  background: rgba(139, 168, 136, 0.08);
+  border: 1px solid rgba(139, 168, 136, 0.2);
+  transform: scale(1.08);
+  font-weight: 600;
+}
+
+.month-tab:hover {
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.month-name {
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+.month-year {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}

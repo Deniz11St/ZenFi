@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.2.0';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -44,6 +44,14 @@ window.changeMonth = (delta) => {
   const d = state.calendarDate ? new Date(state.calendarDate) : new Date();
   d.setDate(1);
   d.setMonth(d.getMonth() + delta);
+  state.calendarDate = d.toISOString();
+  render();
+};
+
+window.setCalendarMonth = (offset) => {
+  const d = state.calendarDate ? new Date(state.calendarDate) : new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
   state.calendarDate = d.toISOString();
   render();
 };
@@ -249,11 +257,25 @@ const pages = {
        `;
     }
     
+    // -2'den +2'ye kadar olan ayların şeridini oluşturalım
+    const monthsHtml = [];
+    for (let offset = -2; offset <= 2; offset++) {
+      const targetDate = new Date(year, month + offset, 1);
+      const isCurrent = offset === 0;
+      const monthLabel = targetDate.toLocaleDateString('tr-TR', { month: 'short' }).toUpperCase();
+      const yearLabel = targetDate.getFullYear();
+      
+      monthsHtml.push(`
+        <div class="month-tab ${isCurrent ? 'active' : ''}" onclick="window.setCalendarMonth(${offset})">
+          <span class="month-name">${monthLabel}</span>
+          <span class="month-year">${yearLabel}</span>
+        </div>
+      `);
+    }
+
     return `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding: 1rem 0;">
-        <button class="zen-btn" onclick="changeMonth(-1)">&larr; ÖNCEKİ</button>
-        <h3 style="margin: 0; color: var(--primary-sage);">${today.toLocaleDateString('tr-TR', {month: 'long', year: 'numeric'}).toUpperCase()}</h3>
-        <button class="zen-btn" onclick="changeMonth(1)">SONRAKİ &rarr;</button>
+      <div class="month-selector-strip">
+        ${monthsHtml.join('')}
       </div>
       <div class="calendar-vertical">
         ${daysHtml}

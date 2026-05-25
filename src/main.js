@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -14,7 +14,8 @@ const state = {
     weight: 80,
     height: 180,
     weightHistory: [{ date: new Date().toISOString(), weight: 80 }],
-    startDate: new Date('2026-05-01T00:00:00.000Z').toISOString()
+    startDate: new Date('2026-05-01T00:00:00.000Z').toISOString(),
+    watchPurchaseDate: '2026-05-23'
   },
   plan: JSON.parse(localStorage.getItem('zenfit_plan')) || {
     runDays: 1,
@@ -30,7 +31,8 @@ const state = {
   timer: {
     isRunning: false,
     seconds: 0,
-    interval: null
+    interval: null,
+    heartRate: 72
   },
   chat: [
     { role: 'sensei', text: 'Merhaba yolcu. Bugün bedenine ve ruhuna nasıl baktın?' }
@@ -42,6 +44,7 @@ state.profile.name = state.profile.name || 'Savaşçı';
 state.profile.age = state.profile.age || 30;
 state.profile.gender = state.profile.gender || 'Erkek';
 state.profile.startDate = state.profile.startDate || new Date('2026-05-01T00:00:00.000Z').toISOString();
+state.profile.watchPurchaseDate = state.profile.watchPurchaseDate || '2026-05-23';
 state.plan.defaultDistance = state.plan.defaultDistance !== undefined ? parseFloat(state.plan.defaultDistance) : 3.3;
 state.plan.defaultSpeed = state.plan.defaultSpeed !== undefined ? parseFloat(state.plan.defaultSpeed) : 9.0;
 state.googleFit = state.googleFit || { clientId: '', accessToken: '', isConnected: false };
@@ -206,6 +209,12 @@ window.syncGoogleFitData = async () => {
     const month = today.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
+    const todayLimit = new Date();
+    todayLimit.setHours(23, 59, 59, 999);
+    
+    const watchPurchaseLimit = new Date(state.profile.watchPurchaseDate || '2026-05-23');
+    watchPurchaseLimit.setHours(0, 0, 0, 0);
+    
     let syncCount = 0;
     
     for (let i = 1; i <= daysInMonth; i++) {
@@ -214,7 +223,8 @@ window.syncGoogleFitData = async () => {
       const localDate = new Date(parts[0], parts[1]-1, parts[2], 12);
       const isoDate = localDate.toISOString();
       
-      if (isRunDay(currentDay)) {
+      // Sadece saatin alındığı tarihten itibaren VE bugüne kadar olan günleri senkronize et!
+      if (isRunDay(currentDay) && currentDay >= watchPurchaseLimit && currentDay <= todayLimit) {
         let r = state.runs.find(run => {
           const rd = new Date(run.date);
           return rd.getFullYear() == parts[0] && rd.getMonth() == parts[1]-1 && rd.getDate() == parts[2];
@@ -305,10 +315,20 @@ window.syncGoogleFitData = async () => {
 const pages = {
   home: () => `
     <div class="dashboard-grid">
-      <div class="glass-panel timer-card" style="grid-column: span 2;">
-        <h3 class="dimmed">SİMDİ VE BURADA (KOŞU SAYACI)</h3>
-        <div class="timer-display" id="timer-val">${formatTime(state.timer.seconds)}</div>
-        <div style="display: flex; gap: 1rem; justify-content: center;">
+      <div class="glass-panel timer-card" style="grid-column: span 2; position: relative;">
+        <h3 class="dimmed" style="margin-bottom: 0.5rem;">SİMDİ VE BURADA (KOŞU SAYACI)</h3>
+        
+        <div class="live-pulse-container">
+          <span class="live-heart" id="live-heart-icon" style="animation-duration: ${(60 / state.timer.heartRate).toFixed(2)}s;">❤️</span>
+          <span class="live-hr" id="live-hr-val">${state.timer.heartRate}</span>
+          <span class="live-unit">BPM</span>
+          <span class="live-device-status ${state.googleFit.isConnected ? 'connected' : ''}">
+            ${state.googleFit.isConnected ? 'WATCH 8' : 'SİMÜLE'}
+          </span>
+        </div>
+
+        <div class="timer-display" id="timer-val" style="margin-top: 0.5rem;">${formatTime(state.timer.seconds)}</div>
+        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem;">
           <button class="zen-btn" id="start-stop-btn">${state.timer.isRunning ? 'DURDUR' : 'BAŞLAT'}</button>
           <button class="zen-btn warrior" id="reset-btn">SIFIRLA</button>
         </div>
@@ -804,8 +824,26 @@ const toggleTimer = () => {
     state.timer.isRunning = true;
     state.timer.interval = setInterval(() => {
       state.timer.seconds++;
+      
+      // İlk 90 saniyede nabzı 72'den 140'a doğru lineer yükseltelim
+      if (state.timer.seconds < 90) {
+        state.timer.heartRate = Math.round(72 + (state.timer.seconds * (140 - 72) / 90));
+      } else {
+        // 90 saniyeden sonra 138-143 arasında ufak dalgalanmalar
+        state.timer.heartRate = Math.round(140 + Math.sin(state.timer.seconds / 10) * 3 + (Math.random() - 0.5) * 2);
+      }
+      
       const val = document.getElementById('timer-val');
       if (val) val.innerText = formatTime(state.timer.seconds);
+      
+      const hrVal = document.getElementById('live-hr-val');
+      if (hrVal) hrVal.innerText = state.timer.heartRate;
+      
+      const heartIcon = document.getElementById('live-heart-icon');
+      if (heartIcon) {
+        const duration = (60 / state.timer.heartRate).toFixed(2);
+        heartIcon.style.animationDuration = `${duration}s`;
+      }
     }, 1000);
   }
   render();
@@ -815,6 +853,7 @@ const resetTimer = () => {
   clearInterval(state.timer.interval);
   state.timer.isRunning = false;
   state.timer.seconds = 0;
+  state.timer.heartRate = 72;
   render();
 };
 

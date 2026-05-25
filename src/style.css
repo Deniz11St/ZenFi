@@ -502,3 +502,74 @@ input:focus {
     font-size: 0.65rem !important;
   }
 }
+
+/* Live Pulse Container Styles */
+.live-pulse-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 82, 82, 0.05);
+  border: 1px solid rgba(255, 82, 82, 0.15);
+  border-radius: 50px;
+  padding: 0.4rem 1rem;
+  margin: 0.5rem auto;
+  font-family: var(--font-main);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.live-heart {
+  font-size: 1.1rem;
+  animation: heartbeat-anim 1s infinite cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: inline-block;
+  transform-origin: center;
+}
+
+.live-hr {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ff5252;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-unit {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.live-device-status {
+  font-size: 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  padding: 0.1rem 0.5rem;
+  border-radius: 20px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.live-device-status.connected {
+  color: #4caf50;
+  border-color: rgba(76, 175, 80, 0.3);
+  background: rgba(76, 175, 80, 0.05);
+}
+
+@keyframes heartbeat-anim {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.15);
+  }
+  40% {
+    transform: scale(1);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

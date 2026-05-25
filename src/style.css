@@ -372,20 +372,15 @@ input:focus {
 
 @media (max-width: 768px) {
   .calendar-day-row {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 1rem;
+    padding: 0.8rem 1rem;
     gap: 1rem;
   }
   .day-label {
+    min-width: 50px;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    border-bottom: 1px solid var(--glass-border);
-    padding-bottom: 0.5rem;
-    text-align: left;
-  }
-  .day-label div {
-    display: inline-block;
+    justify-content: center;
+    text-align: center;
   }
 }

@@ -1,8 +1,50 @@
 // import './style.css'
 // import Chart from 'chart.js/auto'
 
+// --- ERROR BOUNDARY ---
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error("ZenFit Hata Yakalandı:", message, "Satır:", lineno, "Sütun:", colno, error);
+  const content = document.getElementById('main-content');
+  if (content) {
+    content.innerHTML = `
+      <div class="glass-panel" style="padding: 2.5rem; text-align: center; margin: 2rem auto; max-width: 500px; border-color: rgba(255, 82, 82, 0.4); background: rgba(18, 20, 18, 0.95); box-shadow: 0 8px 32px 0 rgba(255, 82, 82, 0.1);">
+        <span style="font-size: 3.5rem; filter: drop-shadow(0 0 10px rgba(255,82,82,0.3));">🧘‍♂️⚠️</span>
+        <h2 style="color: #ff5252; margin-top: 1rem; font-weight: 300; letter-spacing: 1px;">BİR DENGESİZLİK OLUŞTU</h2>
+        <p class="dimmed" style="margin: 1.5rem 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-silk);">
+          Sensei diyor ki: "Zihindeki fırtınalar bazen akışı durdurur." Uygulama yüklenirken beklenmedik bir hata ile karşılaşıldı.
+        </p>
+        <div style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 12px; text-align: left; font-family: monospace; font-size: 0.75rem; color: #ff8a8a; overflow-x: auto; margin-bottom: 2rem; max-height: 120px; border: 1px solid rgba(255,82,82,0.15); line-height: 1.4;">
+          <strong>Hata:</strong> ${message}<br>
+          <strong>Konum:</strong> Satır ${lineno}:${colno}
+        </div>
+        <div style="display: flex; gap: 0.8rem; justify-content: center; flex-direction: column;">
+          <button class="zen-btn warrior" onclick="window.location.reload(true)" style="width: 100%; padding: 0.9rem; letter-spacing: 1px;">YENİDEN DENE</button>
+          <button class="zen-btn" onclick="window.clearZenFitData()" style="width: 100%; border-color: rgba(255,255,255,0.1); color: var(--text-silk); padding: 0.9rem;">ZİHNİ SIFIRLA (VERİLERİ TEMİZLE)</button>
+        </div>
+      </div>
+    `;
+  }
+  return false;
+};
+
+window.clearZenFitData = () => {
+  if (confirm('Tüm antrenman verileriniz, profiliniz ve ayarlarınız sıfırlanacaktır. Bu işlem geri alınamaz. Emin misiniz?')) {
+    localStorage.clear();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (let reg of regs) reg.unregister();
+      });
+    }
+    caches.keys().then(keys => {
+      for (let key of keys) caches.delete(key);
+    });
+    alert('Uygulama belleği temizlendi. Sayfa yeniden yükleniyor...');
+    window.location.reload(true);
+  }
+};
+
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -43,6 +85,9 @@ const state = {
 state.profile.name = state.profile.name || 'Savaşçı';
 state.profile.age = state.profile.age || 30;
 state.profile.gender = state.profile.gender || 'Erkek';
+state.profile.height = state.profile.height || 180;
+state.profile.weight = state.profile.weight || 80;
+state.profile.weightHistory = state.profile.weightHistory || [{ date: new Date().toISOString(), weight: state.profile.weight || 80 }];
 state.profile.startDate = state.profile.startDate || new Date('2026-05-01T00:00:00.000Z').toISOString();
 state.profile.watchPurchaseDate = state.profile.watchPurchaseDate || '2026-05-23';
 state.plan.defaultDistance = state.plan.defaultDistance !== undefined ? parseFloat(state.plan.defaultDistance) : 3.3;

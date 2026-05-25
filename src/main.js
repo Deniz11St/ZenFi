@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -313,18 +313,25 @@ window.syncGoogleFitData = async () => {
 
 // --- PAGES ---
 const pages = {
-  home: () => `
+  home: () => {
+    const isBTConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
+    
+    return `
     <div class="dashboard-grid">
       <div class="glass-panel timer-card" style="grid-column: span 2; position: relative;">
         <h3 class="dimmed" style="margin-bottom: 0.5rem;">SİMDİ VE BURADA (KOŞU SAYACI)</h3>
         
-        <div class="live-pulse-container">
-          <span class="live-heart" id="live-heart-icon" style="animation-duration: ${(60 / state.timer.heartRate).toFixed(2)}s;">❤️</span>
-          <span class="live-hr" id="live-hr-val">${state.timer.heartRate}</span>
+        <div class="live-pulse-container ${isBTConnected ? 'active' : ''}">
+          <span class="live-heart ${isBTConnected ? 'beat' : 'silent'}" id="live-heart-icon" style="animation-duration: ${isBTConnected ? (60 / state.timer.heartRate).toFixed(2) + 's' : '0s'};">❤️</span>
+          <span class="live-hr" id="live-hr-val">${isBTConnected ? state.timer.heartRate : '-'}</span>
           <span class="live-unit">BPM</span>
-          <span class="live-device-status ${state.googleFit.isConnected ? 'connected' : ''}">
-            ${state.googleFit.isConnected ? 'WATCH 8' : 'SİMÜLE'}
+          <span class="live-device-status ${isBTConnected ? 'connected' : ''}">
+            ${isBTConnected ? 'WATCH 8' : 'BAĞLI DEĞİL'}
           </span>
+          ${isBTConnected 
+            ? `<button id="live-hr-disconnect-btn" class="zen-btn warrior" style="padding: 0.2rem 0.8rem; font-size: 0.65rem; border-radius: 20px; line-height: 1;" onclick="window.disconnectBluetoothHR()">KES</button>`
+            : `<button id="live-hr-connect-btn" class="zen-btn google-fit-btn" style="padding: 0.2rem 0.8rem; font-size: 0.65rem; border-radius: 20px; line-height: 1;" onclick="window.connectBluetoothHR()">BAĞLA</button>`
+          }
         </div>
 
         <div class="timer-display" id="timer-val" style="margin-top: 0.5rem;">${formatTime(state.timer.seconds)}</div>
@@ -332,7 +339,8 @@ const pages = {
           <button class="zen-btn" id="start-stop-btn">${state.timer.isRunning ? 'DURDUR' : 'BAŞLAT'}</button>
           <button class="zen-btn warrior" id="reset-btn">SIFIRLA</button>
         </div>
-      </div>
+      </div>`;
+  },
 
       <div class="glass-panel" style="padding: 2rem;">
         <h3>MANUEL GİRİŞ</h3>
@@ -825,25 +833,12 @@ const toggleTimer = () => {
     state.timer.interval = setInterval(() => {
       state.timer.seconds++;
       
-      // İlk 90 saniyede nabzı 72'den 140'a doğru lineer yükseltelim
-      if (state.timer.seconds < 90) {
-        state.timer.heartRate = Math.round(72 + (state.timer.seconds * (140 - 72) / 90));
-      } else {
-        // 90 saniyeden sonra 138-143 arasında ufak dalgalanmalar
-        state.timer.heartRate = Math.round(140 + Math.sin(state.timer.seconds / 10) * 3 + (Math.random() - 0.5) * 2);
-      }
-      
       const val = document.getElementById('timer-val');
       if (val) val.innerText = formatTime(state.timer.seconds);
       
+      // Bluetooth bağlıysa anlık nabzı güncelle, bağlı değilse boş (-) bırak
       const hrVal = document.getElementById('live-hr-val');
-      if (hrVal) hrVal.innerText = state.timer.heartRate;
-      
-      const heartIcon = document.getElementById('live-heart-icon');
-      if (heartIcon) {
-        const duration = (60 / state.timer.heartRate).toFixed(2);
-        heartIcon.style.animationDuration = `${duration}s`;
-      }
+      if (hrVal) hrVal.innerText = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected ? state.timer.heartRate : '-';
     }, 1000);
   }
   render();
@@ -853,8 +848,93 @@ const resetTimer = () => {
   clearInterval(state.timer.interval);
   state.timer.isRunning = false;
   state.timer.seconds = 0;
-  state.timer.heartRate = 72;
   render();
+};
+
+window.bluetoothDeviceHR = null;
+window.heartRateCharacteristicHR = null;
+
+window.connectBluetoothHR = async () => {
+  if (!navigator.bluetooth) {
+    alert("Tarayıcınız Web Bluetooth API desteğine sahip değil! Lütfen Chrome, Edge veya Samsung Internet tarayıcılarını kullanın ve sitenin HTTPS (güvenli bağlantı) üzerinden çalıştığından emin olun.");
+    return;
+  }
+  
+  const connectBtn = document.getElementById('live-hr-connect-btn');
+  if (connectBtn) {
+    connectBtn.innerText = 'ARANIYOR...';
+    connectBtn.disabled = true;
+  }
+  
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['heart_rate'] }]
+    });
+    
+    window.bluetoothDeviceHR = device;
+    device.addEventListener('gattserverdisconnected', onDisconnectedHR);
+    
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('heart_rate');
+    const characteristic = await service.getCharacteristic('heart_rate_measurement');
+    
+    window.heartRateCharacteristicHR = characteristic;
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', handleHRUpdate);
+    
+    state.googleFit.isConnected = true;
+    saveState();
+    alert('Samsung Watch 8 (Bluetooth) başarıyla bağlandı! Nabız veriniz canlı olarak ekrana yansıtılıyor.');
+    render();
+  } catch (err) {
+    console.error('Bluetooth Nabız Bağlantı Hatası:', err);
+    alert('Bluetooth bağlantısı kurulamadı. Saatinizde Bluetooth Heart Rate yayın uygulamasının (Transmitter) açık olduğundan emin olun.');
+    if (connectBtn) {
+      connectBtn.innerText = '❤️ SAATİ BAĞLA';
+      connectBtn.disabled = false;
+    }
+  }
+};
+
+const handleHRUpdate = (event) => {
+  const value = event.target.value;
+  let flags = value.getUint8(0);
+  let rate16 = flags & 0x01;
+  let heartRate = 0;
+  if (rate16) {
+    heartRate = value.getUint16(1, true);
+  } else {
+    heartRate = value.getUint8(1);
+  }
+  
+  state.timer.heartRate = heartRate;
+  
+  const hrVal = document.getElementById('live-hr-val');
+  if (hrVal) hrVal.innerText = heartRate;
+  
+  const heartIcon = document.getElementById('live-heart-icon');
+  if (heartIcon) {
+    const duration = (60 / heartRate).toFixed(2);
+    heartIcon.style.animationDuration = `${duration}s`;
+  }
+};
+
+const onDisconnectedHR = () => {
+  state.googleFit.isConnected = false;
+  window.bluetoothDeviceHR = null;
+  window.heartRateCharacteristicHR = null;
+  state.timer.heartRate = 72;
+  saveState();
+  alert('Samsung Watch 8 (Bluetooth) bağlantısı kesildi.');
+  render();
+};
+
+window.disconnectBluetoothHR = () => {
+  if (window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected) {
+    window.bluetoothDeviceHR.gatt.disconnect();
+  } else {
+    onDisconnectedHR();
+  }
 };
 
 // Initialize

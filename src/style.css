@@ -520,9 +520,19 @@ input:focus {
 
 .live-heart {
   font-size: 1.1rem;
-  animation: heartbeat-anim 1s infinite cubic-bezier(0.25, 0.8, 0.25, 1);
   display: inline-block;
   transform-origin: center;
+  transition: var(--transition-smooth);
+}
+
+.live-heart.silent {
+  animation: none !important;
+  opacity: 0.25;
+  filter: grayscale(100%);
+}
+
+.live-heart.beat {
+  animation: heartbeat-anim 1s infinite cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .live-hr {

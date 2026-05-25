@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zenfit-v1';
+const CACHE_NAME = 'zenfit-v1.0.7';
 const ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,21 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
+    })
+  );
+  self.skipWaiting(); // Yeni service worker'ın hemen devreye girmesini sağlar
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cache) => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache); // Eski cache sürümünü siler
+          }
+        })
+      );
     })
   );
 });

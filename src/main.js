@@ -339,8 +339,7 @@ const pages = {
           <button class="zen-btn" id="start-stop-btn">${state.timer.isRunning ? 'DURDUR' : 'BAŞLAT'}</button>
           <button class="zen-btn warrior" id="reset-btn">SIFIRLA</button>
         </div>
-      </div>`;
-  },
+      </div>
 
       <div class="glass-panel" style="padding: 2rem;">
         <h3>MANUEL GİRİŞ</h3>
@@ -370,7 +369,8 @@ const pages = {
         </div>
       </div>
     </div>
-  `,
+    `;
+  },
   calendar: () => {
     const today = state.calendarDate ? new Date(state.calendarDate) : new Date();
     const year = today.getFullYear();

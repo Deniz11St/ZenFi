@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -184,15 +184,13 @@ const pages = {
     }
     
     return `
-      <div class="glass-panel" style="padding: 1rem 2rem 2rem 2rem; overflow: hidden; position: relative;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding: 1.5rem 0; border-bottom: 1px solid var(--glass-border); position: sticky; top: 0; background: var(--bg-card); backdrop-filter: blur(20px); z-index: 10; margin-left: -2rem; margin-right: -2rem; padding-left: 2rem; padding-right: 2rem;">
-          <button class="zen-btn" onclick="changeMonth(-1)">&larr; ÖNCEKİ</button>
-          <h3 style="margin: 0; color: var(--primary-sage);">${today.toLocaleDateString('tr-TR', {month: 'long', year: 'numeric'}).toUpperCase()}</h3>
-          <button class="zen-btn" onclick="changeMonth(1)">SONRAKİ &rarr;</button>
-        </div>
-        <div class="calendar-vertical">
-          ${daysHtml}
-        </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding: 1rem 0;">
+        <button class="zen-btn" onclick="changeMonth(-1)">&larr; ÖNCEKİ</button>
+        <h3 style="margin: 0; color: var(--primary-sage);">${today.toLocaleDateString('tr-TR', {month: 'long', year: 'numeric'}).toUpperCase()}</h3>
+        <button class="zen-btn" onclick="changeMonth(1)">SONRAKİ &rarr;</button>
+      </div>
+      <div class="calendar-vertical">
+        ${daysHtml}
       </div>
     `;
   },

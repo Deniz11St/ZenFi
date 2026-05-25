@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),

@@ -281,9 +281,12 @@ input:focus {
     gap: 1.5rem;
   }
   
+  .dashboard-grid > div {
+    grid-column: span 1 !important;
+  }
+  
   .timer-card {
     padding: 2rem 1rem;
-    grid-column: span 1 !important;
   }
 
   .glass-panel {

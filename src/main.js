@@ -2,7 +2,7 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.1.0';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -15,7 +15,9 @@ const state = {
   },
   plan: JSON.parse(localStorage.getItem('zenfit_plan')) || {
     runDays: 1,
-    restDays: 3
+    restDays: 3,
+    defaultDistance: 3.3,
+    defaultSpeed: 9.0
   },
   timer: {
     isRunning: false,
@@ -26,6 +28,10 @@ const state = {
     { role: 'sensei', text: 'Merhaba yolcu. Bugün bedenine ve ruhuna nasıl baktın?' }
   ]
 };
+
+// Eski localStorage verileri için varsayılan değer güvencesi
+state.plan.defaultDistance = state.plan.defaultDistance !== undefined ? parseFloat(state.plan.defaultDistance) : 3.3;
+state.plan.defaultSpeed = state.plan.defaultSpeed !== undefined ? parseFloat(state.plan.defaultSpeed) : 9.0;
 
 window.changeMonth = (delta) => {
   const d = state.calendarDate ? new Date(state.calendarDate) : new Date();
@@ -91,6 +97,27 @@ const formatTime = (s) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+const isRunDay = (date) => {
+  const start = new Date(state.profile.startDate || new Date());
+  start.setHours(0,0,0,0);
+  const current = new Date(date);
+  current.setHours(0,0,0,0);
+  
+  const diffTime = current - start;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) return false;
+  
+  const runDays = parseInt(state.plan.runDays) || 1;
+  const restDays = parseInt(state.plan.restDays) || 3;
+  const cycleLength = runDays + restDays;
+  
+  if (cycleLength === 0) return false;
+  
+  const dayIndex = diffDays % cycleLength;
+  return dayIndex < runDays;
+};
+
 const calculateNextRun = () => {
   if (state.runs.length === 0) return new Date();
   const lastRun = new Date(state.runs[state.runs.length - 1].date);
@@ -154,16 +181,50 @@ const pages = {
        const currentDay = new Date(year, month, i);
        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
        
+       const isRun = isRunDay(currentDay);
+       
        const run = state.runs.find(r => {
          const runDate = new Date(r.date);
          return runDate.getFullYear() === year && runDate.getMonth() === month && runDate.getDate() === i;
-       }) || { distance: '', duration: '', speed: '' };
+       });
        
+       let displayDistance = '';
+       let isDistanceAuto = false;
+       let displaySpeed = '';
+       let isSpeedAuto = false;
+       let displayDuration = '';
+       
+       if (run) {
+         displayDistance = run.distance;
+         displaySpeed = run.speed;
+         displayDuration = run.duration;
+       }
+       
+       if (!displayDistance && isRun) {
+         displayDistance = state.plan.defaultDistance;
+         isDistanceAuto = true;
+       }
+       
+       if (!displaySpeed && isRun) {
+         displaySpeed = state.plan.defaultSpeed;
+         isSpeedAuto = true;
+       }
+       
+       // Kilo
        const weightObj = state.profile.weightHistory.find(w => {
          const wDate = new Date(w.date);
          return wDate.getFullYear() === year && wDate.getMonth() === month && wDate.getDate() === i;
        });
-       const weight = weightObj ? weightObj.weight : '';
+       
+       let displayWeight = '';
+       let isWeightAuto = false;
+       
+       if (weightObj) {
+         displayWeight = weightObj.weight;
+       } else {
+         displayWeight = state.profile.weight;
+         isWeightAuto = true;
+       }
        
        const dayOfWeek = currentDay.toLocaleDateString('tr-TR', {weekday: 'short'});
        
@@ -174,10 +235,10 @@ const pages = {
              <div style="font-size: 0.8rem; text-transform: uppercase;">${dayOfWeek}</div>
            </div>
            <div class="day-inputs">
-             <div class="input-col"><small class="dimmed">Mesafe (km)</small><input type="number" step="0.1" placeholder="0" value="${run.distance || ''}" onchange="updateDayData('${dateStr}', 'distance', this.value)"></div>
-             <div class="input-col"><small class="dimmed">Süre (dk)</small><input type="number" placeholder="0" value="${run.duration || ''}" onchange="updateDayData('${dateStr}', 'duration', this.value)"></div>
-             <div class="input-col"><small class="dimmed">Hız (km/s)</small><input type="number" step="0.1" placeholder="0" value="${run.speed || ''}" onchange="updateDayData('${dateStr}', 'speed', this.value)"></div>
-             <div class="input-col"><small class="dimmed">Kilo (kg)</small><input type="number" step="0.1" placeholder="0" value="${weight || ''}" onchange="updateDayData('${dateStr}', 'weight', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Mesafe (km)</small><input type="number" step="0.1" placeholder="0" class="${isDistanceAuto ? 'auto-filled' : ''}" value="${displayDistance || ''}" onchange="updateDayData('${dateStr}', 'distance', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Süre (dk)</small><input type="number" placeholder="0" value="${displayDuration || ''}" onchange="updateDayData('${dateStr}', 'duration', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Hız (km/s)</small><input type="number" step="0.1" placeholder="0" class="${isSpeedAuto ? 'auto-filled' : ''}" value="${displaySpeed || ''}" onchange="updateDayData('${dateStr}', 'speed', this.value)"></div>
+             <div class="input-col"><small class="dimmed">Kilo (kg)</small><input type="number" step="0.1" placeholder="0" class="${isWeightAuto ? 'auto-filled' : ''}" value="${displayWeight || ''}" onchange="updateDayData('${dateStr}', 'weight', this.value)"></div>
            </div>
          </div>
        `;
@@ -232,13 +293,13 @@ const pages = {
     </div>
   `,
   settings: () => `
-    <div class="dashboard-grid">
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
       <div class="glass-panel" style="padding: 2rem;">
         <h3>PROFİL AYARLARI</h3>
         <form id="settings-form" style="margin-top: 1.5rem;">
           <div class="input-group">
             <label>Güncel Kilo (kg)</label>
-            <input type="number" id="set-weight" value="${state.profile.weight}">
+            <input type="number" step="0.1" id="set-weight" value="${state.profile.weight}">
           </div>
           <div class="input-group">
             <label>Boy (cm)</label>
@@ -249,10 +310,25 @@ const pages = {
       </div>
 
       <div class="glass-panel" style="padding: 2rem;">
+        <h3>VARSAYILAN KOŞU DEĞERLERİ</h3>
+        <form id="default-run-form" style="margin-top: 1.5rem;">
+          <div class="input-group">
+            <label>Varsayılan Mesafe (km)</label>
+            <input type="number" step="0.1" id="set-def-dist" value="${state.plan.defaultDistance}">
+          </div>
+          <div class="input-group">
+            <label>Varsayılan Hız (km/s)</label>
+            <input type="number" step="0.1" id="set-def-speed" value="${state.plan.defaultSpeed}">
+          </div>
+          <button type="submit" class="zen-btn warrior" style="width: 100%;">KAYDET</button>
+        </form>
+      </div>
+
+      <div class="glass-panel" style="padding: 2rem;">
         <h3>AKIŞ PLANI (DÖNGÜ)</h3>
         <form id="plan-form" style="margin-top: 1.5rem;">
           <div class="input-group">
-            <label>Koşu (Disiplin) Günü</label>
+            <label>Koşu Günü</label>
             <input type="number" id="set-run-days" value="${state.plan.runDays}" min="1">
           </div>
           <div class="input-group">
@@ -263,7 +339,7 @@ const pages = {
         </form>
       </div>
 
-      <div class="glass-panel" style="padding: 2rem; grid-column: span 2;">
+      <div class="glass-panel" style="padding: 2rem; grid-column: 1 / -1;">
         <h3>KİLO DEĞİŞİMİ</h3>
         <canvas id="weightChart" style="width: 100%; height: 200px;"></canvas>
       </div>
@@ -384,6 +460,18 @@ const attachEvents = () => {
       e.preventDefault();
       state.plan.runDays = document.getElementById('set-run-days').value;
       state.plan.restDays = document.getElementById('set-rest-days').value;
+      saveState();
+      render();
+    };
+  }
+
+  // Default Run Settings
+  const defaultRunForm = document.getElementById('default-run-form');
+  if (defaultRunForm) {
+    defaultRunForm.onsubmit = (e) => {
+      e.preventDefault();
+      state.plan.defaultDistance = parseFloat(document.getElementById('set-def-dist').value);
+      state.plan.defaultSpeed = parseFloat(document.getElementById('set-def-speed').value);
       saveState();
       render();
     };

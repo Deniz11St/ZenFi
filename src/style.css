@@ -387,3 +387,12 @@ input:focus {
     text-align: center;
   }
 }
+
+/* Auto-filled placeholder inputs styling */
+.input-col input.auto-filled {
+  color: rgba(139, 168, 136, 0.6) !important;
+  border-color: rgba(139, 168, 136, 0.15) !important;
+  font-style: italic;
+  font-weight: 300;
+  text-shadow: 0 0 5px rgba(139, 168, 136, 0.1);
+}

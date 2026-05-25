@@ -2,16 +2,19 @@
 // import Chart from 'chart.js/auto'
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
   runs: JSON.parse(localStorage.getItem('zenfit_runs')) || [],
   profile: JSON.parse(localStorage.getItem('zenfit_profile')) || {
+    name: 'Savaşçı',
+    age: 30,
+    gender: 'Erkek',
     weight: 80,
     height: 180,
     weightHistory: [{ date: new Date().toISOString(), weight: 80 }],
-    startDate: new Date().toISOString()
+    startDate: new Date('2026-05-01T00:00:00.000Z').toISOString()
   },
   plan: JSON.parse(localStorage.getItem('zenfit_plan')) || {
     runDays: 1,
@@ -30,6 +33,10 @@ const state = {
 };
 
 // Eski localStorage verileri için varsayılan değer güvencesi
+state.profile.name = state.profile.name || 'Savaşçı';
+state.profile.age = state.profile.age || 30;
+state.profile.gender = state.profile.gender || 'Erkek';
+state.profile.startDate = state.profile.startDate || new Date('2026-05-01T00:00:00.000Z').toISOString();
 state.plan.defaultDistance = state.plan.defaultDistance !== undefined ? parseFloat(state.plan.defaultDistance) : 3.3;
 state.plan.defaultSpeed = state.plan.defaultSpeed !== undefined ? parseFloat(state.plan.defaultSpeed) : 9.0;
 
@@ -98,15 +105,12 @@ const formatTime = (s) => {
 };
 
 const isRunDay = (date) => {
-  const start = new Date(state.profile.startDate || new Date());
-  start.setHours(0,0,0,0);
-  const current = new Date(date);
-  current.setHours(0,0,0,0);
+  const start = new Date(state.profile.startDate || '2026-05-01T00:00:00.000Z');
+  const sDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const cDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   
-  const diffTime = current - start;
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays < 0) return false;
+  const diffTime = cDate - sDate;
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
   
   const runDays = parseInt(state.plan.runDays) || 1;
   const restDays = parseInt(state.plan.restDays) || 3;
@@ -114,7 +118,8 @@ const isRunDay = (date) => {
   
   if (cycleLength === 0) return false;
   
-  const dayIndex = diffDays % cycleLength;
+  // Negatif modülüs korumalı döngü indeksi hesabı (tüm geçmiş/gelecek günleri doldurur)
+  const dayIndex = ((diffDays % cycleLength) + cycleLength) % cycleLength;
   return dayIndex < runDays;
 };
 
@@ -298,12 +303,32 @@ const pages = {
         <h3>PROFİL AYARLARI</h3>
         <form id="settings-form" style="margin-top: 1.5rem;">
           <div class="input-group">
-            <label>Güncel Kilo (kg)</label>
-            <input type="number" step="0.1" id="set-weight" value="${state.profile.weight}">
+            <label>İsim / Rumuz</label>
+            <input type="text" id="set-name" value="${state.profile.name || 'Savaşçı'}">
           </div>
-          <div class="input-group">
-            <label>Boy (cm)</label>
-            <input type="number" id="set-height" value="${state.profile.height}">
+          <div class="input-group" style="display: flex; flex-direction: row; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+              <label>Yaş</label>
+              <input type="number" id="set-age" value="${state.profile.age || 30}" style="width: 100%;">
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+              <label>Cinsiyet</label>
+              <select id="set-gender" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 1rem; color: white; outline: none; font-family: inherit; width: 100%; height: 55px;">
+                <option value="Erkek" ${state.profile.gender === 'Erkek' ? 'selected' : ''} style="background: var(--bg-dark); color: white;">Erkek</option>
+                <option value="Kadın" ${state.profile.gender === 'Kadın' ? 'selected' : ''} style="background: var(--bg-dark); color: white;">Kadın</option>
+                <option value="Diğer" ${state.profile.gender === 'Diğer' ? 'selected' : ''} style="background: var(--bg-dark); color: white;">Diğer</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-group" style="display: flex; flex-direction: row; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+              <label>Kilo (kg)</label>
+              <input type="number" step="0.1" id="set-weight" value="${state.profile.weight}" style="width: 100%;">
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+              <label>Boy (cm)</label>
+              <input type="number" id="set-height" value="${state.profile.height}" style="width: 100%;">
+            </div>
           </div>
           <button type="submit" class="zen-btn warrior" style="width: 100%;">GÜNCELLE</button>
         </form>
@@ -444,9 +469,12 @@ const attachEvents = () => {
   if (settingsForm) {
     settingsForm.onsubmit = (e) => {
       e.preventDefault();
-      const newWeight = document.getElementById('set-weight').value;
+      const newWeight = parseFloat(document.getElementById('set-weight').value);
+      state.profile.name = document.getElementById('set-name').value;
+      state.profile.age = parseInt(document.getElementById('set-age').value) || 30;
+      state.profile.gender = document.getElementById('set-gender').value;
       state.profile.weight = newWeight;
-      state.profile.height = document.getElementById('set-height').value;
+      state.profile.height = parseFloat(document.getElementById('set-height').value) || 180;
       state.profile.weightHistory.push({ date: new Date().toISOString(), weight: newWeight });
       saveState();
       render();

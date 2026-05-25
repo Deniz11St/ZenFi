@@ -1,12 +1,12 @@
 const CACHE_NAME = 'zenfit-v1.0.7';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/src/main.js',
-  '/src/style.css',
-  '/icon.png',
-  '/sensei.png',
-  '/zen-bg.png'
+  './',
+  './index.html',
+  './src/main.js',
+  './src/style.css',
+  './icon.png',
+  './sensei.png',
+  './zen-bg.png'
 ];
 
 self.addEventListener('install', (event) => {

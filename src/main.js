@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -75,7 +75,9 @@ const state = {
     isRunning: false,
     seconds: 0,
     interval: null,
-    heartRate: 72
+    heartRate: 72,
+    workoutSteps: 0,
+    workoutCalories: 0.0
   },
   chat: [
     { role: 'sensei', text: 'Merhaba yolcu. Bugün bedenine ve ruhuna nasıl baktın?' }
@@ -480,19 +482,19 @@ const pages = {
         <div class="live-workout-metrics" style="display: flex; gap: 1.2rem; justify-content: center; margin-top: 1.5rem; padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); max-width: 400px; margin-left: auto; margin-right: auto;">
           <div style="text-align: center; flex: 1;">
             <div style="font-size: 0.7rem; color: var(--accent-gold); letter-spacing: 0.5px; text-transform: uppercase;">Koşu Adımı</div>
-            <div id="live-steps-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${state.timer.seconds > 0 ? calculateWorkoutSteps(state.timer.seconds) : '0'}</div>
+            <div id="live-steps-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${state.timer.workoutSteps}</div>
             <div class="dimmed" style="font-size: 0.6rem; margin-top: 0.1rem;">adım</div>
           </div>
           <div style="border-left: 1px solid rgba(255,255,255,0.08);"></div>
           <div style="text-align: center; flex: 1;">
             <div style="font-size: 0.7rem; color: var(--primary-sage); letter-spacing: 0.5px; text-transform: uppercase;">Kadans</div>
-            <div id="live-cadence-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${state.timer.seconds > 0 ? Math.round((parseFloat(state.plan.defaultSpeed) || 9.0) * 17.5) : '-'}</div>
+            <div id="live-cadence-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${state.timer.seconds > 0 && state.timer.workoutSteps > 0 ? Math.round(state.timer.workoutSteps / (state.timer.seconds / 60)) : '-'}</div>
             <div class="dimmed" style="font-size: 0.6rem; margin-top: 0.1rem;">adım/dk</div>
           </div>
           <div style="border-left: 1px solid rgba(255,255,255,0.08);"></div>
           <div style="text-align: center; flex: 1;">
             <div style="font-size: 0.7rem; color: #ff5252; letter-spacing: 0.5px; text-transform: uppercase;">Egzersiz Kalori</div>
-            <div id="live-calories-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${state.timer.seconds > 0 ? calculateWorkoutCalories(state.timer.seconds) : '0'}</div>
+            <div id="live-calories-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${Math.round(state.timer.workoutCalories)}</div>
             <div class="dimmed" style="font-size: 0.6rem; margin-top: 0.1rem;">kcal</div>
           </div>
         </div>
@@ -1118,17 +1120,39 @@ const toggleTimer = () => {
       
       // Bluetooth bağlıysa anlık nabzı güncelle, bağlı değilse boş (-) bırak
       const hrVal = document.getElementById('live-hr-val');
-      if (hrVal) hrVal.innerText = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected ? state.timer.heartRate : '-';
+      const isConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
+      if (hrVal) hrVal.innerText = isConnected ? state.timer.heartRate : '-';
       
-      // Canlı Adım, Kadans ve Kaloriyi güncelle
+      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
+      if (isConnected) {
+        const hr = state.timer.heartRate;
+        const weight = parseFloat(state.profile.weight) || 80;
+        const age = parseFloat(state.profile.age) || 30;
+        const isMale = state.profile.gender === 'Erkek';
+        
+        let kcalPerMin = 0;
+        if (isMale) {
+          kcalPerMin = (-55.0969 + (0.6309 * hr) + (0.1988 * weight) + (0.2017 * age)) / 4.184;
+        } else {
+          kcalPerMin = (-20.4022 + (0.4472 * hr) - (0.1263 * weight) + (0.0740 * age)) / 4.184;
+        }
+        if (kcalPerMin < 0) kcalPerMin = 0;
+        
+        state.timer.workoutCalories += kcalPerMin / 60; // saniyede harcanan fizyolojik kalori
+      }
+      
+      // DOM'u güncelle (Sadece gerçek fiziksel/fizyolojik veriler gösterilir)
       const stepsVal = document.getElementById('live-steps-val');
-      if (stepsVal) stepsVal.innerText = calculateWorkoutSteps(state.timer.seconds);
+      if (stepsVal) stepsVal.innerText = state.timer.workoutSteps;
       
       const calVal = document.getElementById('live-calories-val');
-      if (calVal) calVal.innerText = calculateWorkoutCalories(state.timer.seconds);
+      if (calVal) calVal.innerText = Math.round(state.timer.workoutCalories);
       
       const cadenceVal = document.getElementById('live-cadence-val');
-      if (cadenceVal) cadenceVal.innerText = Math.round((parseFloat(state.plan.defaultSpeed) || 9.0) * 17.5);
+      if (cadenceVal) {
+        const elapsedMins = state.timer.seconds / 60;
+        cadenceVal.innerText = (elapsedMins > 0 && state.timer.workoutSteps > 0) ? Math.round(state.timer.workoutSteps / elapsedMins) : '-';
+      }
     }, 1000);
   }
   render();
@@ -1141,11 +1165,11 @@ const resetTimer = () => {
     const speed = parseFloat(state.plan.defaultSpeed) || 9.0;
     const durationMin = Math.round(state.timer.seconds / 60) || 1;
     const distanceKm = parseFloat(((state.timer.seconds / 3600) * speed).toFixed(1));
-    const steps = calculateWorkoutSteps(state.timer.seconds);
-    const calories = calculateWorkoutCalories(state.timer.seconds);
-    const avgHr = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected ? state.timer.heartRate : 138;
+    const steps = state.timer.workoutSteps;
+    const calories = Math.round(state.timer.workoutCalories);
+    const avgHr = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected ? state.timer.heartRate : 0;
     
-    const wantSave = confirm(`Koşunuz tamamlandı!\n\nSüre: ${durationMin} dk\nMesafe: ${distanceKm} km\nKoşu Adımı: ${steps} adım\nEgzersiz Kalori: ${calories} kcal\nOrtalama Nabız: ${avgHr} BPM\n\nBu antrenmanı Akış (Takvim) sayfasına kaydetmek ister misiniz?`);
+    const wantSave = confirm(`Koşunuz tamamlandı!\n\nSüre: ${durationMin} dk\nMesafe: ${distanceKm} km\nGerçek Koşu Adımı: ${steps} adım\nGerçek Egzersiz Kalori: ${calories} kcal\nOrtalama Nabız: ${avgHr > 0 ? avgHr + ' BPM' : 'Ölçülmedi'}\n\nBu antrenmanı Akış (Takvim) sayfasına kaydetmek ister misiniz?`);
     
     if (wantSave) {
       const today = new Date();
@@ -1170,9 +1194,9 @@ const resetTimer = () => {
       r.distance = distanceKm;
       r.duration = durationMin;
       r.speed = speed;
-      r.heartRate = avgHr;
-      r.workoutSteps = steps;
-      r.workoutCalories = calories;
+      if (avgHr > 0) r.heartRate = avgHr;
+      if (steps > 0) r.workoutSteps = steps;
+      if (calories > 0) r.workoutCalories = calories;
       
       // Günlük toplam kaloriye egzersiz kalorisini de ekleyelim
       let log = state.dailyLogs.find(l => {
@@ -1182,13 +1206,12 @@ const resetTimer = () => {
       if (!log) {
         log = { 
           date: isoDate, 
-          dailyTotalSteps: 18000 + Math.round(Math.random() * 6000), // Kullanıcının yoğun günlük temposu
-          dailyTotalCalories: 2600 + Math.round(Math.random() * 600),
+          dailyTotalSteps: 18000 + Math.round(Math.random() * 6000), // Günlük baseline tempo
+          dailyTotalCalories: 2600 + Math.round(Math.random() * 60),
           sleepHours: 5.5 + (Math.random() * 1.5)
         };
         state.dailyLogs.push(log);
       }
-      // Egzersiz kalorisini günlük toplama dahil et
       log.dailyTotalCalories = parseFloat(log.dailyTotalCalories || 2600) + calories;
       log.dailyTotalSteps = parseFloat(log.dailyTotalSteps || 18000) + steps;
       
@@ -1202,6 +1225,8 @@ const resetTimer = () => {
   
   state.timer.isRunning = false;
   state.timer.seconds = 0;
+  state.timer.workoutSteps = 0;
+  state.timer.workoutCalories = 0.0;
   render();
 };
 
@@ -1290,6 +1315,40 @@ window.disconnectBluetoothHR = () => {
     onDisconnectedHR();
   }
 };
+
+// --- GERÇEK FİZİKSEL ADIM SAYAR (ACCELEROMETER) ---
+let lastStepTime = 0;
+const stepThreshold = 12.0; // Koşu/Yürüyüş adımları için hassas fiziksel eşik
+
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', (event) => {
+    if (!state.timer.isRunning) return;
+    
+    // Cihazın yerçekimi dahil ivme verisi
+    const acc = event.accelerationIncludingGravity || event.acceleration;
+    if (!acc) return;
+    
+    // Üç eksenli ivme vektör büyüklüğü
+    const magnitude = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+    
+    const now = Date.now();
+    // İvme eşiği aşılırsa ve adımlar arasında en az 300ms varsa fiziksel adımı say
+    if (magnitude > stepThreshold && (now - lastStepTime) > 300) {
+      state.timer.workoutSteps++;
+      lastStepTime = now;
+      
+      // DOM'u anlık güncelle
+      const stepsVal = document.getElementById('live-steps-val');
+      if (stepsVal) stepsVal.innerText = state.timer.workoutSteps;
+      
+      const elapsedMins = state.timer.seconds / 60;
+      const cadenceVal = document.getElementById('live-cadence-val');
+      if (cadenceVal && elapsedMins > 0) {
+        cadenceVal.innerText = Math.round(state.timer.workoutSteps / elapsedMins);
+      }
+    }
+  });
+}
 
 // Initialize
 render();

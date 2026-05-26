@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.3';
+const APP_VERSION = '1.6.4';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -136,23 +136,23 @@ window.updateDayData = (dateStr, field, value) => {
     if (state.profile.weightHistory.length > 0) {
       state.profile.weight = state.profile.weightHistory[state.profile.weightHistory.length-1].weight;
     }
-  } else if (field === 'dailyTotalSteps' || field === 'dailyTotalCalories' || field === 'sleepHours' || field === 'bloodPressure') {
+  } else if (field === 'dailyTotalSteps' || field === 'dailyTotalCalories' || field === 'sleepHours' || field === 'bloodPressure' || field === 'ecgStatus') {
     let log = state.dailyLogs.find(l => {
       const ld = new Date(l.date);
       return ld.getFullYear() == parts[0] && ld.getMonth() == parts[1]-1 && ld.getDate() == parts[2];
     });
     
     if (!log && value) {
-      log = { date: isoDate, dailyTotalSteps: '', dailyTotalCalories: '', sleepHours: '', bloodPressure: '' };
+      log = { date: isoDate, dailyTotalSteps: '', dailyTotalCalories: '', sleepHours: '', bloodPressure: '', ecgStatus: '' };
       state.dailyLogs.push(log);
     }
     if (log) {
-      if (field === 'bloodPressure') {
+      if (field === 'bloodPressure' || field === 'ecgStatus') {
         log[field] = value ? String(value) : '';
       } else {
         log[field] = value ? parseFloat(value) : '';
       }
-      if (!log.dailyTotalSteps && !log.dailyTotalCalories && !log.sleepHours && !log.bloodPressure) {
+      if (!log.dailyTotalSteps && !log.dailyTotalCalories && !log.sleepHours && !log.bloodPressure && !log.ecgStatus) {
         state.dailyLogs = state.dailyLogs.filter(item => item !== log);
       }
     }
@@ -244,7 +244,14 @@ const getLatestBloodPressure = () => {
   return latestWithBP ? latestWithBP.bloodPressure : null;
 };
 
-window.syncBloodPressureHome = async (btn) => {
+const getLatestEcgStatus = () => {
+  if (state.dailyLogs.length === 0) return null;
+  const sortedLogs = [...state.dailyLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const latestWithEcg = sortedLogs.find(l => l.ecgStatus);
+  return latestWithEcg ? latestWithEcg.ecgStatus : null;
+};
+
+window.syncHeartHealthHome = async (btn) => {
   const originalText = btn.innerHTML;
   btn.innerHTML = '❤️ AKTARILIYOR...';
   btn.disabled = true;
@@ -256,11 +263,25 @@ window.syncBloodPressureHome = async (btn) => {
   btn.innerHTML = originalText;
   btn.disabled = false;
   
-  // Ana sayfa değerini güncelle
+  // EKG ritmini güncelle
+  const ecgVal = document.getElementById('home-ecg-val');
+  if (ecgVal) {
+    const latestEcg = getLatestEcgStatus();
+    ecgVal.innerText = latestEcg === 'Sinüs' ? '🟢 Sinüs Ritmi' : latestEcg === 'AFib' ? '🔴 Atriyal Fibrilasyon' : latestEcg === 'Belirsiz' ? '🟡 Belirsiz' : '-';
+    ecgVal.style.transition = 'all 0.5s ease';
+    ecgVal.style.color = '#64ffda';
+    ecgVal.style.textShadow = '0 0 15px rgba(100, 255, 218, 0.6)';
+    setTimeout(() => {
+      ecgVal.style.color = 'white';
+      ecgVal.style.textShadow = 'none';
+    }, 1200);
+  }
+  
+  // Tansiyon değerini güncelle
   const bpVal = document.getElementById('home-bp-val');
   if (bpVal) {
-    const latest = getLatestBloodPressure();
-    bpVal.innerText = latest || '- / -';
+    const latestBp = getLatestBloodPressure();
+    bpVal.innerText = latestBp || '- / -';
     bpVal.style.transition = 'all 0.5s ease';
     bpVal.style.color = '#ff8a80';
     bpVal.style.textShadow = '0 0 15px rgba(255, 138, 128, 0.6)';
@@ -363,6 +384,7 @@ window.syncGoogleFitData = async () => {
         log.dailyTotalCalories = log.dailyTotalCalories || (2400 + Math.round(Math.random() * 400));
         log.sleepHours = log.sleepHours || parseFloat((5.0 + Math.random() * 1.5).toFixed(1)); // 5.0 - 6.5 saat az uyku
         log.bloodPressure = log.bloodPressure || `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`;
+        log.ecgStatus = log.ecgStatus || (Math.random() > 0.1 ? 'Sinüs' : 'Belirsiz');
 
         // Eğer bugün koşu günüyse, koşu verilerini simüle et
         if (isRunDay(currentDay)) {
@@ -456,13 +478,15 @@ window.syncGoogleFitData = async () => {
               dailyTotalSteps: 18000 + Math.round(Math.random() * 6000) + r.workoutSteps,
               dailyTotalCalories: 2400 + Math.round(Math.random() * 400) + r.workoutCalories,
               sleepHours: parseFloat((5.0 + Math.random() * 1.5).toFixed(1)),
-              bloodPressure: `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`
+              bloodPressure: `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`,
+              ecgStatus: Math.random() > 0.1 ? 'Sinüs' : 'Belirsiz'
             };
             state.dailyLogs.push(log);
           } else {
             log.dailyTotalSteps = parseFloat(log.dailyTotalSteps) + r.workoutSteps;
             log.dailyTotalCalories = parseFloat(log.dailyTotalCalories) + r.workoutCalories;
             log.bloodPressure = log.bloodPressure || `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`;
+            log.ecgStatus = log.ecgStatus || (Math.random() > 0.1 ? 'Sinüs' : 'Belirsiz');
           }
           syncCount++;
         }
@@ -558,21 +582,28 @@ const pages = {
       </div>
 
       <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
-        <h3>TANSİYON TAKİBİ</h3>
-        <p class="dimmed" style="margin-bottom: 1.5rem;">Saatinizden anlık tansiyon akışı.</p>
-        <div style="margin: auto 0; text-align: center; padding: 1.2rem; border-radius: 12px; background: rgba(255,82,80,0.02); border: 1px solid rgba(255,82,80,0.08);">
-          <div style="font-size: 0.75rem; color: #ff8a80; letter-spacing: 0.5px; text-transform: uppercase;">Son Ölçüm</div>
-          <div id="home-bp-val" style="font-size: 2.2rem; font-weight: 300; margin-top: 0.5rem; color: white; filter: drop-shadow(0 0 10px rgba(255,82,80,0.15));">
-            ${getLatestBloodPressure() || '- / -'}
+        <h3>KALP SAĞLIĞI & EKG</h3>
+        <p class="dimmed" style="margin-bottom: 1.5rem;">Saatinizden anlık EKG ve kalp durumu.</p>
+        <div style="display: flex; gap: 0.8rem; flex-direction: column; margin: auto 0;">
+          <div style="text-align: center; padding: 0.6rem; border-radius: 12px; background: rgba(100,255,218,0.02); border: 1px solid rgba(100,255,218,0.08);">
+            <div style="font-size: 0.7rem; color: #64ffda; letter-spacing: 0.5px; text-transform: uppercase;">Son EKG Ritmi</div>
+            <div id="home-ecg-val" style="font-size: 1.4rem; font-weight: 400; margin-top: 0.25rem; color: white; filter: drop-shadow(0 0 10px rgba(100,255,218,0.15));">
+              ${getLatestEcgStatus() === 'Sinüs' ? '🟢 Sinüs Ritmi' : getLatestEcgStatus() === 'AFib' ? '🔴 Atriyal Fibrilasyon' : getLatestEcgStatus() === 'Belirsiz' ? '🟡 Belirsiz' : '-'}
+            </div>
           </div>
-          <div class="dimmed" style="font-size: 0.65rem; margin-top: 0.25rem;">mmHg</div>
+          <div style="text-align: center; padding: 0.6rem; border-radius: 12px; background: rgba(255,82,80,0.02); border: 1px solid rgba(255,82,80,0.08);">
+            <div style="font-size: 0.7rem; color: #ff8a80; letter-spacing: 0.5px; text-transform: uppercase;">Son Tansiyon</div>
+            <div id="home-bp-val" style="font-size: 1.4rem; font-weight: 300; margin-top: 0.25rem; color: white;">
+              ${getLatestBloodPressure() || '- / -'}
+            </div>
+          </div>
         </div>
-        <div style="margin-top: 1.5rem;">
-          <button class="zen-btn google-fit-btn" style="width: 100%; border-color: rgba(255,82,80,0.3); color: #ff8a80; gap: 0.5rem; display: flex; align-items: center; justify-content: center;" onclick="window.syncBloodPressureHome(this)">
+        <div style="margin-top: 1rem;">
+          <button class="zen-btn google-fit-btn" style="width: 100%; border-color: rgba(100,255,218,0.3); color: #64ffda; gap: 0.5rem; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; padding: 0.6rem 1.2rem;" onclick="window.syncHeartHealthHome(this)">
             ❤️ SAATTEN AKTAR
           </button>
-          <p class="dimmed" style="font-size: 0.6rem; text-align: center; margin-top: 0.8rem; line-height: 1.4;">
-            * Saatinizden ölçümü yaptıktan sonra buraya tıklayarak veriyi anında ZenFit ekranına aktarın.
+          <p class="dimmed" style="font-size: 0.55rem; text-align: center; margin-top: 0.6rem; line-height: 1.4;">
+            * Saatinizden EKG/Tansiyon ölçümü yaptıktan sonra buraya tıklayarak verileri ZenFit ekranına aktarın.
           </p>
         </div>
       </div>
@@ -695,12 +726,14 @@ const pages = {
        let displaySleepHours = '';
        let isSleepAuto = false;
        let displayBloodPressure = '';
+       let displayEcgStatus = '';
 
        if (log) {
          displayDailySteps = log.dailyTotalSteps;
          displayDailyCalories = log.dailyTotalCalories;
          displaySleepHours = log.sleepHours;
          displayBloodPressure = log.bloodPressure;
+         displayEcgStatus = log.ecgStatus;
        }
 
        // Adım Sayısı Auto-fill (Kullanıcının 18k yoğun günlük temposu baz alınır)
@@ -744,6 +777,14 @@ const pages = {
              <div class="input-col"><small class="dimmed" style="color: #ff5252;">Koşu Kalori</small><input type="number" placeholder="-" class="${isWorkoutCaloriesAuto ? 'auto-filled' : ''}" value="${displayWorkoutCalories || ''}" onchange="window.updateDayData('${dateStr}', 'workoutCalories', this.value)"></div>
              <div class="input-col"><small class="dimmed">Nabız (bpm)</small><input type="number" placeholder="-" class="${isHeartRateAuto ? 'auto-filled' : ''}" value="${displayHeartRate || ''}" onchange="window.updateDayData('${dateStr}', 'heartRate', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: #ff8a80;">Tansiyon</small><input type="text" placeholder="120/80" value="${displayBloodPressure || ''}" onchange="window.updateDayData('${dateStr}', 'bloodPressure', this.value)" style="width: 80px;"></div>
+             <div class="input-col"><small class="dimmed" style="color: #64ffda;">EKG</small>
+                <select onchange="window.updateDayData('${dateStr}', 'ecgStatus', this.value)" style="padding: 0.6rem 0.2rem; font-size: 0.8rem; text-align-last: center; background: rgba(255, 255, 255, 0.03); width: 90px; border-radius: 8px; border: 1px solid var(--glass-border); color: white; outline: none; font-family: inherit; height: 38px; cursor: pointer;">
+                  <option value="" ${!displayEcgStatus ? 'selected' : ''}>-</option>
+                  <option value="Sinüs" ${displayEcgStatus === 'Sinüs' ? 'selected' : ''} style="background: var(--bg-dark); color: #64ffda;">🟢 Sinüs</option>
+                  <option value="AFib" ${displayEcgStatus === 'AFib' ? 'selected' : ''} style="background: var(--bg-dark); color: #ff5252;">🔴 AFib</option>
+                  <option value="Belirsiz" ${displayEcgStatus === 'Belirsiz' ? 'selected' : ''} style="background: var(--bg-dark); color: var(--accent-gold);">🟡 Belirsiz</option>
+                </select>
+              </div>
              <div class="input-col"><small class="dimmed">Kilo (kg)</small><input type="number" step="0.1" placeholder="0" class="${isWeightAuto ? 'auto-filled' : ''}" value="${displayWeight || ''}" onchange="window.updateDayData('${dateStr}', 'weight', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: var(--accent-gold); font-weight: 600;">Toplam Adım</small><input type="number" placeholder="-" class="${isDailyStepsAuto ? 'auto-filled' : ''}" value="${displayDailySteps || ''}" onchange="window.updateDayData('${dateStr}', 'dailyTotalSteps', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: #ff5252; font-weight: 600;">Toplam Kalori</small><input type="number" placeholder="-" class="${isDailyCaloriesAuto ? 'auto-filled' : ''}" value="${displayDailyCalories || ''}" onchange="window.updateDayData('${dateStr}', 'dailyTotalCalories', this.value)"></div>

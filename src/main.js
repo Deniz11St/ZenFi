@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.7';
+const APP_VERSION = '1.6.8';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -77,6 +77,7 @@ const state = {
     interval: null,
     heartRate: 72,
     workoutSteps: 0,
+    workoutStepsDecimal: 0,
     workoutCalories: 0.0
   },
   keepScreenAwake: JSON.parse(localStorage.getItem('zenfit_keepscreenawake')) || false,
@@ -1265,8 +1266,9 @@ const toggleTimer = () => {
       const isConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
       if (hrVal) hrVal.innerText = isConnected ? state.timer.heartRate : '-';
       
-      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
+      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü) & Saat Adım Entegrasyonu
       if (isConnected) {
+        // Fizyolojik Kalori
         const hr = state.timer.heartRate;
         const weight = parseFloat(state.profile.weight) || 80;
         const age = parseFloat(state.profile.age) || 30;
@@ -1281,6 +1283,12 @@ const toggleTimer = () => {
         if (kcalPerMin < 0) kcalPerMin = 0;
         
         state.timer.workoutCalories += kcalPerMin / 60; // saniyede harcanan fizyolojik kalori
+        
+        // Saatten Akıllı Adım Sayar (Telefon koşu bandında sabit dururken saat hareket ettiği için)
+        const speed = parseFloat(state.plan.defaultSpeed) || 9.0;
+        const stepsPerSec = (speed * 17.5) / 60;
+        state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
+        state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
       }
       
       // DOM'u güncelle (Sadece gerçek fiziksel/fizyolojik veriler gösterilir)
@@ -1369,6 +1377,7 @@ const resetTimer = () => {
   state.timer.isRunning = false;
   state.timer.seconds = 0;
   state.timer.workoutSteps = 0;
+  state.timer.workoutStepsDecimal = 0;
   state.timer.workoutCalories = 0.0;
   render();
 };
@@ -1466,6 +1475,9 @@ const stepThreshold = 12.0; // Koşu/Yürüyüş adımları için hassas fizikse
 if (window.DeviceMotionEvent) {
   window.addEventListener('devicemotion', (event) => {
     if (!state.timer.isRunning) return;
+    
+    // Bluetooth bağlıysa saatin hareket kadansı devreye girer, çift sayımı önlemek için telefon ivmeölçerini yoksay
+    if (window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected) return;
     
     // Cihazın yerçekimi dahil ivme verisi
     const acc = event.accelerationIncludingGravity || event.acceleration;

@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),

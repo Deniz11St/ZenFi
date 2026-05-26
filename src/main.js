@@ -237,6 +237,40 @@ const calculateNextRun = () => {
   return nextRun;
 };
 
+const getLatestBloodPressure = () => {
+  if (state.dailyLogs.length === 0) return null;
+  const sortedLogs = [...state.dailyLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const latestWithBP = sortedLogs.find(l => l.bloodPressure);
+  return latestWithBP ? latestWithBP.bloodPressure : null;
+};
+
+window.syncBloodPressureHome = async (btn) => {
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '❤️ AKTARILIYOR...';
+  btn.disabled = true;
+  
+  // Google Fit senkronizasyonunu tetikle
+  await window.syncGoogleFitData();
+  
+  // Butonu eski haline getir
+  btn.innerHTML = originalText;
+  btn.disabled = false;
+  
+  // Ana sayfa değerini güncelle
+  const bpVal = document.getElementById('home-bp-val');
+  if (bpVal) {
+    const latest = getLatestBloodPressure();
+    bpVal.innerText = latest || '- / -';
+    bpVal.style.transition = 'all 0.5s ease';
+    bpVal.style.color = '#ff8a80';
+    bpVal.style.textShadow = '0 0 15px rgba(255, 138, 128, 0.6)';
+    setTimeout(() => {
+      bpVal.style.color = 'white';
+      bpVal.style.textShadow = 'none';
+    }, 1200);
+  }
+};
+
 window.connectGoogleFit = () => {
   if (!state.googleFit.clientId) {
     alert("Google Developer Client ID tanımlanmadığı için 'Deneme/Simülasyon Modu' aktifleştirildi! (Ayarlar'dan kendi Client ID'nizi girerek gerçek Google hesabınızı bağlayabilirsiniz)");
@@ -522,8 +556,28 @@ const pages = {
           <button type="submit" class="zen-btn warrior" style="width: 100%;">KAYDET</button>
         </form>
       </div>
+
+      <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3>TANSİYON TAKİBİ</h3>
+        <p class="dimmed" style="margin-bottom: 1.5rem;">Saatinizden anlık tansiyon akışı.</p>
+        <div style="margin: auto 0; text-align: center; padding: 1.2rem; border-radius: 12px; background: rgba(255,82,80,0.02); border: 1px solid rgba(255,82,80,0.08);">
+          <div style="font-size: 0.75rem; color: #ff8a80; letter-spacing: 0.5px; text-transform: uppercase;">Son Ölçüm</div>
+          <div id="home-bp-val" style="font-size: 2.2rem; font-weight: 300; margin-top: 0.5rem; color: white; filter: drop-shadow(0 0 10px rgba(255,82,80,0.15));">
+            ${getLatestBloodPressure() || '- / -'}
+          </div>
+          <div class="dimmed" style="font-size: 0.65rem; margin-top: 0.25rem;">mmHg</div>
+        </div>
+        <div style="margin-top: 1.5rem;">
+          <button class="zen-btn google-fit-btn" style="width: 100%; border-color: rgba(255,82,80,0.3); color: #ff8a80; gap: 0.5rem; display: flex; align-items: center; justify-content: center;" onclick="window.syncBloodPressureHome(this)">
+            ❤️ SAATTEN AKTAR
+          </button>
+          <p class="dimmed" style="font-size: 0.6rem; text-align: center; margin-top: 0.8rem; line-height: 1.4;">
+            * Saatinizden ölçümü yaptıktan sonra buraya tıklayarak veriyi anında ZenFit ekranına aktarın.
+          </p>
+        </div>
+      </div>
       
-      <div class="glass-panel" style="padding: 2rem;">
+      <div class="glass-panel" style="padding: 2rem; grid-column: span 2;">
         <h3>DURUM</h3>
         <div style="margin-top: 1rem;">
           <p class="dimmed">Son Koşu: <span style="color: var(--text-silk);">${state.runs.length > 0 ? new Date(state.runs[state.runs.length - 1].date).toLocaleDateString('tr-TR') : 'Henüz yok'}</span></p>

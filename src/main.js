@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -136,19 +136,23 @@ window.updateDayData = (dateStr, field, value) => {
     if (state.profile.weightHistory.length > 0) {
       state.profile.weight = state.profile.weightHistory[state.profile.weightHistory.length-1].weight;
     }
-  } else if (field === 'dailyTotalSteps' || field === 'dailyTotalCalories' || field === 'sleepHours') {
+  } else if (field === 'dailyTotalSteps' || field === 'dailyTotalCalories' || field === 'sleepHours' || field === 'bloodPressure') {
     let log = state.dailyLogs.find(l => {
       const ld = new Date(l.date);
       return ld.getFullYear() == parts[0] && ld.getMonth() == parts[1]-1 && ld.getDate() == parts[2];
     });
     
     if (!log && value) {
-      log = { date: isoDate, dailyTotalSteps: '', dailyTotalCalories: '', sleepHours: '' };
+      log = { date: isoDate, dailyTotalSteps: '', dailyTotalCalories: '', sleepHours: '', bloodPressure: '' };
       state.dailyLogs.push(log);
     }
     if (log) {
-      log[field] = value ? parseFloat(value) : '';
-      if (!log.dailyTotalSteps && !log.dailyTotalCalories && !log.sleepHours) {
+      if (field === 'bloodPressure') {
+        log[field] = value ? String(value) : '';
+      } else {
+        log[field] = value ? parseFloat(value) : '';
+      }
+      if (!log.dailyTotalSteps && !log.dailyTotalCalories && !log.sleepHours && !log.bloodPressure) {
         state.dailyLogs = state.dailyLogs.filter(item => item !== log);
       }
     }
@@ -324,6 +328,7 @@ window.syncGoogleFitData = async () => {
         log.dailyTotalSteps = log.dailyTotalSteps || dailyBaselineSteps;
         log.dailyTotalCalories = log.dailyTotalCalories || (2400 + Math.round(Math.random() * 400));
         log.sleepHours = log.sleepHours || parseFloat((5.0 + Math.random() * 1.5).toFixed(1)); // 5.0 - 6.5 saat az uyku
+        log.bloodPressure = log.bloodPressure || `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`;
 
         // Eğer bugün koşu günüyse, koşu verilerini simüle et
         if (isRunDay(currentDay)) {
@@ -416,12 +421,14 @@ window.syncGoogleFitData = async () => {
               date: isoDate,
               dailyTotalSteps: 18000 + Math.round(Math.random() * 6000) + r.workoutSteps,
               dailyTotalCalories: 2400 + Math.round(Math.random() * 400) + r.workoutCalories,
-              sleepHours: parseFloat((5.0 + Math.random() * 1.5).toFixed(1))
+              sleepHours: parseFloat((5.0 + Math.random() * 1.5).toFixed(1)),
+              bloodPressure: `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`
             };
             state.dailyLogs.push(log);
           } else {
             log.dailyTotalSteps = parseFloat(log.dailyTotalSteps) + r.workoutSteps;
             log.dailyTotalCalories = parseFloat(log.dailyTotalCalories) + r.workoutCalories;
+            log.bloodPressure = log.bloodPressure || `${115 + Math.round(Math.random() * 10)}/${75 + Math.round(Math.random() * 8)}`;
           }
           syncCount++;
         }
@@ -621,7 +628,7 @@ const pages = {
          isWeightAuto = true;
        }
 
-       // Günlük Yaşam Verileri (Adım, Kalori, Uyku)
+       // Günlük Yaşam Verileri (Adım, Kalori, Uyku, Tansiyon)
        const log = state.dailyLogs.find(l => {
          const ld = new Date(l.date);
          return ld.getFullYear() === year && ld.getMonth() === month && ld.getDate() === i;
@@ -633,11 +640,13 @@ const pages = {
        let isDailyCaloriesAuto = false;
        let displaySleepHours = '';
        let isSleepAuto = false;
+       let displayBloodPressure = '';
 
        if (log) {
          displayDailySteps = log.dailyTotalSteps;
          displayDailyCalories = log.dailyTotalCalories;
          displaySleepHours = log.sleepHours;
+         displayBloodPressure = log.bloodPressure;
        }
 
        // Adım Sayısı Auto-fill (Kullanıcının 18k yoğun günlük temposu baz alınır)
@@ -680,6 +689,7 @@ const pages = {
              <div class="input-col"><small class="dimmed" style="color: var(--accent-gold);">Koşu Adımı</small><input type="number" placeholder="-" class="${isWorkoutStepsAuto ? 'auto-filled' : ''}" value="${displayWorkoutSteps || ''}" onchange="window.updateDayData('${dateStr}', 'workoutSteps', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: #ff5252;">Koşu Kalori</small><input type="number" placeholder="-" class="${isWorkoutCaloriesAuto ? 'auto-filled' : ''}" value="${displayWorkoutCalories || ''}" onchange="window.updateDayData('${dateStr}', 'workoutCalories', this.value)"></div>
              <div class="input-col"><small class="dimmed">Nabız (bpm)</small><input type="number" placeholder="-" class="${isHeartRateAuto ? 'auto-filled' : ''}" value="${displayHeartRate || ''}" onchange="window.updateDayData('${dateStr}', 'heartRate', this.value)"></div>
+             <div class="input-col"><small class="dimmed" style="color: #ff8a80;">Tansiyon</small><input type="text" placeholder="120/80" value="${displayBloodPressure || ''}" onchange="window.updateDayData('${dateStr}', 'bloodPressure', this.value)" style="width: 80px;"></div>
              <div class="input-col"><small class="dimmed">Kilo (kg)</small><input type="number" step="0.1" placeholder="0" class="${isWeightAuto ? 'auto-filled' : ''}" value="${displayWeight || ''}" onchange="window.updateDayData('${dateStr}', 'weight', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: var(--accent-gold); font-weight: 600;">Toplam Adım</small><input type="number" placeholder="-" class="${isDailyStepsAuto ? 'auto-filled' : ''}" value="${displayDailySteps || ''}" onchange="window.updateDayData('${dateStr}', 'dailyTotalSteps', this.value)"></div>
              <div class="input-col"><small class="dimmed" style="color: #ff5252; font-weight: 600;">Toplam Kalori</small><input type="number" placeholder="-" class="${isDailyCaloriesAuto ? 'auto-filled' : ''}" value="${displayDailyCalories || ''}" onchange="window.updateDayData('${dateStr}', 'dailyTotalCalories', this.value)"></div>

@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -957,6 +957,9 @@ const pages = {
     <div class="glass-panel" style="padding: 2rem; margin-top: 2rem; text-align: center;">
       <h3>SİSTEM</h3>
       <p class="dimmed" style="margin-bottom: 0.5rem;">Mevcut Versiyon: v${APP_VERSION}</p>
+      <p style="font-size: 0.85rem; color: var(--primary-sage); margin-top: 0.8rem; font-weight: 300; letter-spacing: 0.5px;">
+        Bu uygulama <span style="font-weight: 600; color: white;">Deniz Demirci</span> tarafından geliştirilmiştir.
+      </p>
       <button id="check-update-btn" class="zen-btn warrior" style="width: 100%; max-width: 300px; margin-top: 1rem;">GÜNCELLEMEYİ DENETLE</button>
     </div>
   `

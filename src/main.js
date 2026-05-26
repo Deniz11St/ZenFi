@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.5';
+const APP_VERSION = '1.6.6';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -518,8 +518,28 @@ window.syncGoogleFitData = async () => {
 const pages = {
   home: () => {
     const isBTConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
+    const isWakeLocked = !!window.wakeLockSentinel;
     
     return `
+    <!-- Üst Kontrol Şeridi -->
+    <div class="top-control-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; width: 100%; flex-wrap: wrap;">
+      <!-- Bluetooth Saati Bağla Butonu -->
+      <div>
+        ${isBTConnected 
+          ? `<button class="zen-btn warrior" onclick="window.disconnectBluetoothHR()" style="padding: 0.6rem 1.5rem; font-size: 0.75rem; border-radius: 30px; display: flex; align-items: center; gap: 0.5rem; line-height: 1;">📶 SAAT BAĞLANTISINI KES</button>`
+          : `<button class="zen-btn google-fit-btn" onclick="window.connectBluetoothHR()" style="padding: 0.6rem 1.5rem; font-size: 0.75rem; border-radius: 30px; display: flex; align-items: center; gap: 0.5rem; line-height: 1;">📶 SAATİ BAĞLA (WATCH 8)</button>`
+        }
+      </div>
+
+      <!-- Ekranı Açık Tut Kaydırmalı Switch -->
+      <div style="display: flex; align-items: center; gap: 0.8rem;">
+        <span class="dimmed" style="font-size: 0.8rem; letter-spacing: 0.5px;">EKRANI AÇIK TUT</span>
+        <div class="zen-switch ${isWakeLocked ? 'active' : ''}" onclick="window.toggleScreenWakeLock(this)" style="position: relative; width: 55px; height: 28px; background: ${isWakeLocked ? 'var(--primary-sage)' : 'rgba(255,255,255,0.08)'}; border: 1px solid ${isWakeLocked ? 'var(--primary-sage)' : 'var(--glass-border)'}; border-radius: 20px; cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+          <div class="zen-switch-handle" style="position: absolute; top: 3px; left: ${isWakeLocked ? '29px' : '4px'}; width: 20px; height: 20px; background: white; border-radius: 50%; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="dashboard-grid">
       <div class="glass-panel timer-card" style="grid-column: span 2; position: relative;">
         <h3 class="dimmed" style="margin-bottom: 0.5rem;">SİMDİ VE BURADA (KOŞU SAYACI)</h3>
@@ -531,10 +551,6 @@ const pages = {
           <span class="live-device-status ${isBTConnected ? 'connected' : ''}">
             ${isBTConnected ? 'WATCH 8' : 'BAĞLI DEĞİL'}
           </span>
-          ${isBTConnected 
-            ? `<button id="live-hr-disconnect-btn" class="zen-btn warrior" style="padding: 0.2rem 0.8rem; font-size: 0.65rem; border-radius: 20px; line-height: 1;" onclick="window.disconnectBluetoothHR()">KES</button>`
-            : `<button id="live-hr-connect-btn" class="zen-btn google-fit-btn" style="padding: 0.2rem 0.8rem; font-size: 0.65rem; border-radius: 20px; line-height: 1;" onclick="window.connectBluetoothHR()">BAĞLA</button>`
-          }
         </div>
 
         <div class="timer-display" id="timer-val" style="margin-top: 0.5rem;">${formatTime(state.timer.seconds)}</div>
@@ -1457,6 +1473,75 @@ if (window.DeviceMotionEvent) {
     }
   });
 }
+
+// --- EKRANI AÇIK TUT (WAKE LOCK API) ---
+window.wakeLockSentinel = null;
+
+window.toggleScreenWakeLock = async (switchEl) => {
+  if (!navigator.wakeLock) {
+    alert("Tarayıcınız Ekranı Açık Tut (Wake Lock) özelliğini desteklemiyor. Lütfen Chrome, Edge veya Samsung Internet tarayıcılarını tercih edin.");
+    return;
+  }
+
+  const handle = switchEl.querySelector('.zen-switch-handle');
+
+  if (!window.wakeLockSentinel) {
+    try {
+      window.wakeLockSentinel = await navigator.wakeLock.request('screen');
+      
+      // UI Güncelleme
+      switchEl.classList.add('active');
+      switchEl.style.background = 'var(--primary-sage)';
+      switchEl.style.borderColor = 'var(--primary-sage)';
+      if (handle) handle.style.left = '29px';
+      
+      window.wakeLockSentinel.addEventListener('release', () => {
+        console.log('Wake Lock serbest bırakıldı.');
+        window.wakeLockSentinel = null;
+        
+        // UI sıfırlama
+        const currentSwitch = document.querySelector('.zen-switch');
+        if (currentSwitch) {
+          currentSwitch.classList.remove('active');
+          currentSwitch.style.background = 'rgba(255,255,255,0.08)';
+          currentSwitch.style.borderColor = 'var(--glass-border)';
+          const h = currentSwitch.querySelector('.zen-switch-handle');
+          if (h) h.style.left = '4px';
+        }
+      });
+      
+      alert("Ekran Kilidi Açık Tutma Özelliği Aktif! Koşu bandındayken ekranınız kapanmayacaktır.");
+    } catch (err) {
+      console.error('Wake Lock Hatası:', err);
+      alert('Ekran kilidi aktif edilemedi: ' + err.message);
+    }
+  } else {
+    try {
+      await window.wakeLockSentinel.release();
+    } catch (err) {
+      console.error('Wake Lock serbest bırakma hatası:', err);
+    }
+    window.wakeLockSentinel = null;
+    
+    switchEl.classList.remove('active');
+    switchEl.style.background = 'rgba(255,255,255,0.08)';
+    switchEl.style.borderColor = 'var(--glass-border)';
+    if (handle) handle.style.left = '4px';
+    
+    alert("Ekran kilidi açık tutma özelliği kapatıldı.");
+  }
+};
+
+// Sekme görünürlüğü değiştiğinde (örneğin arka plana gidip gelindiğinde) Wake Lock'u kurtaralım
+document.addEventListener('visibilitychange', async () => {
+  if (window.wakeLockSentinel !== null && document.visibilityState === 'visible') {
+    try {
+      window.wakeLockSentinel = await navigator.wakeLock.request('screen');
+    } catch (err) {
+      console.error('Görünürlük değişimi sonrası Wake Lock kurtarılamadı:', err);
+    }
+  }
+});
 
 // Initialize
 render();

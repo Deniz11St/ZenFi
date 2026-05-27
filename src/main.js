@@ -44,7 +44,7 @@ window.clearZenFitData = () => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.8';
+const APP_VERSION = '1.6.9';
 const state = {
   currentPage: 'home',
   calendarDate: new Date().toISOString(),
@@ -76,6 +76,7 @@ const state = {
     seconds: 0,
     interval: null,
     heartRate: 72,
+    liveCadence: 0,
     workoutSteps: 0,
     workoutStepsDecimal: 0,
     workoutCalories: 0.0
@@ -1284,11 +1285,15 @@ const toggleTimer = () => {
         
         state.timer.workoutCalories += kcalPerMin / 60; // saniyede harcanan fizyolojik kalori
         
-        // Saatten Akıllı Adım Sayar (Telefon koşu bandında sabit dururken saat hareket ettiği için)
-        const speed = parseFloat(state.plan.defaultSpeed) || 9.0;
-        const stepsPerSec = (speed * 17.5) / 60;
-        state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
-        state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
+        // Saatten Gerçek Adım Sayar Entegrasyonu: 
+        // Eğer saatten canlı kadans (liveCadence) bilgisi geliyorsa, adımları buna göre ekle.
+        // Kadans sıfırsa veya kullanıcı duruyorsa adım artmaz!
+        const liveCadence = state.timer.liveCadence || 0;
+        if (liveCadence > 0) {
+          const stepsPerSec = liveCadence / 60;
+          state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
+          state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
+        }
       }
       
       // DOM'u güncelle (Sadece gerçek fiziksel/fizyolojik veriler gösterilir)
@@ -1300,8 +1305,13 @@ const toggleTimer = () => {
       
       const cadenceVal = document.getElementById('live-cadence-val');
       if (cadenceVal) {
-        const elapsedMins = state.timer.seconds / 60;
-        cadenceVal.innerText = (elapsedMins > 0 && state.timer.workoutSteps > 0) ? Math.round(state.timer.workoutSteps / elapsedMins) : '-';
+        // Bluetooth bağlıysa ve canlı kadans varsa onu göster, yoksa ortalama hesapla
+        if (isConnected && state.timer.liveCadence !== undefined) {
+          cadenceVal.innerText = state.timer.liveCadence || '-';
+        } else {
+          const elapsedMins = state.timer.seconds / 60;
+          cadenceVal.innerText = (elapsedMins > 0 && state.timer.workoutSteps > 0) ? Math.round(state.timer.workoutSteps / elapsedMins) : '-';
+        }
       }
     }, 1000);
   }
@@ -1384,6 +1394,7 @@ const resetTimer = () => {
 
 window.bluetoothDeviceHR = null;
 window.heartRateCharacteristicHR = null;
+window.rscCharacteristicHR = null;
 
 window.connectBluetoothHR = async () => {
   if (!navigator.bluetooth) {
@@ -1399,23 +1410,37 @@ window.connectBluetoothHR = async () => {
   
   try {
     const device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: ['heart_rate'] }]
+      filters: [{ services: ['heart_rate'] }],
+      optionalServices: ['running_speed_and_cadence']
     });
     
     window.bluetoothDeviceHR = device;
     device.addEventListener('gattserverdisconnected', onDisconnectedHR);
     
     const server = await device.gatt.connect();
+    
+    // Nabız Servisi
     const service = await server.getPrimaryService('heart_rate');
     const characteristic = await service.getCharacteristic('heart_rate_measurement');
-    
     window.heartRateCharacteristicHR = characteristic;
     await characteristic.startNotifications();
     characteristic.addEventListener('characteristicvaluechanged', handleHRUpdate);
     
+    // Koşu Hızı ve Kadans Servisi (Varsa)
+    try {
+      const rscService = await server.getPrimaryService('running_speed_and_cadence');
+      const rscCharacteristic = await rscService.getCharacteristic('rsc_measurement');
+      window.rscCharacteristicHR = rscCharacteristic;
+      await rscCharacteristic.startNotifications();
+      rscCharacteristic.addEventListener('characteristicvaluechanged', handleRSCUpdate);
+      console.log('RSC (Koşu Kadansı) servisi başarıyla bağlandı.');
+    } catch (rscErr) {
+      console.log('Cihaz RSC (Koşu Kadansı) servisini desteklemiyor veya bağlanılamadı:', rscErr);
+    }
+    
     state.googleFit.isConnected = true;
     saveState();
-    alert('Samsung Watch 8 (Bluetooth) başarıyla bağlandı! Nabız veriniz canlı olarak ekrana yansıtılıyor.');
+    alert('Samsung Watch 8 (Bluetooth) başarıyla bağlandı! Nabız ve koşu kadansı verileriniz canlı olarak ekrana yansıtılıyor.');
     render();
   } catch (err) {
     console.error('Bluetooth Nabız Bağlantı Hatası:', err);
@@ -1450,11 +1475,35 @@ const handleHRUpdate = (event) => {
   }
 };
 
+const handleRSCUpdate = (event) => {
+  const value = event.target.value;
+  // RSC Measurement format:
+  // Flags: 1 byte
+  // Instantaneous Speed: 2 bytes (uint16, m/s * 256)
+  // Instantaneous Cadence: 1 byte (uint8, RPM / steps per minute)
+  // Cumulative Strides: 2 bytes (uint16) - İsteğe bağlı
+  // Total Distance: 4 bytes (uint32) - İsteğe bağlı
+  
+  const flags = value.getUint8(0);
+  const cadence = value.getUint8(3); // Genellikle 3. indekstedir (4. byte)
+  
+  state.timer.liveCadence = cadence || 0;
+  console.log("Canlı Kadans (Saat):", cadence);
+  
+  // Arayüzde kadans göstergesini canlı güncelle
+  const cadenceVal = document.getElementById('live-cadence-val');
+  if (cadenceVal) {
+    cadenceVal.innerText = cadence || '-';
+  }
+};
+
 const onDisconnectedHR = () => {
   state.googleFit.isConnected = false;
   window.bluetoothDeviceHR = null;
   window.heartRateCharacteristicHR = null;
+  window.rscCharacteristicHR = null;
   state.timer.heartRate = 72;
+  state.timer.liveCadence = 0;
   saveState();
   alert('Samsung Watch 8 (Bluetooth) bağlantısı kesildi.');
   render();

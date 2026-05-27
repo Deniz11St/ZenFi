@@ -43,10 +43,17 @@ window.clearZenFitData = () => {
   }
 };
 
+window.setStepSource = (source) => {
+  state.stepSource = source;
+  saveState();
+  render();
+};
+
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.6.9';
+const APP_VERSION = '1.7.0';
 const state = {
   currentPage: 'home',
+  stepSource: localStorage.getItem('zenfit_stepsource') || 'watch',
   calendarDate: new Date().toISOString(),
   runs: JSON.parse(localStorage.getItem('zenfit_runs')) || [],
   dailyLogs: JSON.parse(localStorage.getItem('zenfit_dailylogs')) || [],
@@ -188,6 +195,7 @@ const saveState = () => {
   localStorage.setItem('zenfit_plan', JSON.stringify(state.plan));
   localStorage.setItem('zenfit_googlefit', JSON.stringify(state.googleFit));
   localStorage.setItem('zenfit_keepscreenawake', JSON.stringify(state.keepScreenAwake));
+  localStorage.setItem('zenfit_stepsource', state.stepSource);
 };
 
 // --- UTILS ---
@@ -981,6 +989,20 @@ const pages = {
         </div>
       </div>
 
+      <!-- ADIM SENSÖR KAYNAĞI -->
+      <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3>ADIM SENSÖR KAYNAĞI</h3>
+        <p class="dimmed" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; flex: 1;">
+          Koşu bandında koşarken telefonu bandın üzerine koyuyorsanız <span style="color: var(--accent-gold); font-weight: 500;">Saat Sensörü</span> modunu seçin. Telefon cebinizde dışarıda koşuyorsanız <span style="color: var(--primary-sage); font-weight: 500;">Telefon Sensörü</span> modunu seçin. Bu sayede mükerrer sayım kesinlikle engellenir.
+        </p>
+        <div style="display: flex; gap: 0.8rem; flex-direction: column; margin-top: 1.5rem;">
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="zen-btn ${state.stepSource === 'watch' ? 'warrior' : ''}" onclick="window.setStepSource('watch')" style="flex: 1; font-size: 0.75rem; padding: 0.8rem 0.5rem;">⌚ SAAT SENSÖRÜ</button>
+            <button class="zen-btn ${state.stepSource === 'phone' ? 'warrior' : ''}" onclick="window.setStepSource('phone')" style="flex: 1; font-size: 0.75rem; padding: 0.8rem 0.5rem;">📱 TELEFON SENSÖRÜ</button>
+          </div>
+        </div>
+      </div>
+
       <div class="glass-panel" style="padding: 2rem; grid-column: 1 / -1;">
         <h3>KİLO DEĞİŞİMİ</h3>
         <canvas id="weightChart" style="width: 100%; height: 200px;"></canvas>
@@ -1254,6 +1276,15 @@ const toggleTimer = () => {
     state.timer.isRunning = false;
     releaseScreenWakeLock();
   } else {
+    // Mobil tarayıcılarda ivmeölçer izni gerekiyorsa talep et
+    if (state.stepSource === 'phone' && typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission()
+        .then(permissionState => {
+          if (permissionState === 'granted') console.log("İvmeölçer izni verildi.");
+        })
+        .catch(err => console.error("İvmeölçer izin hatası:", err));
+    }
+
     state.timer.isRunning = true;
     if (state.keepScreenAwake) requestScreenWakeLock();
     state.timer.interval = setInterval(() => {
@@ -1267,9 +1298,8 @@ const toggleTimer = () => {
       const isConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
       if (hrVal) hrVal.innerText = isConnected ? state.timer.heartRate : '-';
       
-      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü) & Saat Adım Entegrasyonu
+      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
       if (isConnected) {
-        // Fizyolojik Kalori
         const hr = state.timer.heartRate;
         const weight = parseFloat(state.profile.weight) || 80;
         const age = parseFloat(state.profile.age) || 30;
@@ -1285,14 +1315,15 @@ const toggleTimer = () => {
         
         state.timer.workoutCalories += kcalPerMin / 60; // saniyede harcanan fizyolojik kalori
         
-        // Saatten Gerçek Adım Sayar Entegrasyonu: 
-        // Eğer saatten canlı kadans (liveCadence) bilgisi geliyorsa, adımları buna göre ekle.
-        // Kadans sıfırsa veya kullanıcı duruyorsa adım artmaz!
-        const liveCadence = state.timer.liveCadence || 0;
-        if (liveCadence > 0) {
-          const stepsPerSec = liveCadence / 60;
-          state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
-          state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
+        // Saatten Gerçek Adım Sayar Entegrasyonu:
+        // YALNIZCA Adım Sensör Kaynağı "Saat" ise saatten gelen verileri oku!
+        if (state.stepSource === 'watch') {
+          const liveCadence = state.timer.liveCadence || 0;
+          if (liveCadence > 0) {
+            const stepsPerSec = liveCadence / 60;
+            state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
+            state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
+          }
         }
       }
       
@@ -1305,12 +1336,26 @@ const toggleTimer = () => {
       
       const cadenceVal = document.getElementById('live-cadence-val');
       if (cadenceVal) {
-        // Bluetooth bağlıysa ve canlı kadans varsa onu göster, yoksa ortalama hesapla
-        if (isConnected && state.timer.liveCadence !== undefined) {
-          cadenceVal.innerText = state.timer.liveCadence || '-';
+        if (state.stepSource === 'watch') {
+          if (!isConnected) {
+            cadenceVal.innerText = "Saat Bağlı Değil";
+            cadenceVal.style.fontSize = "0.75rem";
+            cadenceVal.style.color = "#ff5252";
+          } else if (!state.timer.liveCadence) {
+            cadenceVal.innerText = "Saat Adım Yayını Yok";
+            cadenceVal.style.fontSize = "0.7rem";
+            cadenceVal.style.color = "var(--accent-gold)";
+          } else {
+            cadenceVal.innerText = state.timer.liveCadence;
+            cadenceVal.style.fontSize = "1.3rem";
+            cadenceVal.style.color = "white";
+          }
         } else {
+          // Telefon modu
           const elapsedMins = state.timer.seconds / 60;
           cadenceVal.innerText = (elapsedMins > 0 && state.timer.workoutSteps > 0) ? Math.round(state.timer.workoutSteps / elapsedMins) : '-';
+          cadenceVal.style.fontSize = "1.3rem";
+          cadenceVal.style.color = "white";
         }
       }
     }, 1000);
@@ -1519,25 +1564,41 @@ window.disconnectBluetoothHR = () => {
 
 // --- GERÇEK FİZİKSEL ADIM SAYAR (ACCELEROMETER) ---
 let lastStepTime = 0;
-const stepThreshold = 12.0; // Koşu/Yürüyüş adımları için hassas fiziksel eşik
 
 if (window.DeviceMotionEvent) {
   window.addEventListener('devicemotion', (event) => {
     if (!state.timer.isRunning) return;
     
-    // Bluetooth bağlıysa saatin hareket kadansı devreye girer, çift sayımı önlemek için telefon ivmeölçerini yoksay
-    if (window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected) return;
+    // YALNIZCA Adım Sensör Kaynağı "Telefon" olarak seçildiyse telefon ivmeölçerini çalıştır!
+    if (state.stepSource !== 'phone') return;
     
-    // Cihazın yerçekimi dahil ivme verisi
-    const acc = event.accelerationIncludingGravity || event.acceleration;
-    if (!acc) return;
+    // Yerçekimsiz ivme varsa onu kullanalım (durağan halde 0'dır, eşik düşüktür)
+    // Yerçekimsiz ivme yoksa yerçekimli ivmeden durağan yerçekimi ivmesini (9.8) filtreleyelim
+    let x = 0, y = 0, z = 0;
+    let isGravityIncluded = false;
     
-    // Üç eksenli ivme vektör büyüklüğü
-    const magnitude = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+    if (event.acceleration && event.acceleration.x !== null) {
+      x = event.acceleration.x;
+      y = event.acceleration.y;
+      z = event.acceleration.z;
+    } else if (event.accelerationIncludingGravity && event.accelerationIncludingGravity.x !== null) {
+      x = event.accelerationIncludingGravity.x;
+      y = event.accelerationIncludingGravity.y;
+      z = event.accelerationIncludingGravity.z;
+      isGravityIncluded = true;
+    } else {
+      return;
+    }
+    
+    const magnitude = Math.sqrt(x*x + y*y + z*z);
+    const netMagnitude = isGravityIncluded ? Math.abs(magnitude - 9.8) : magnitude;
+    
+    // Yürüyüş/Koşu için net ivme değişim eşiği (Hassas ve kararlı: 2.5 m/s²)
+    const stepThreshold = 2.5; 
     
     const now = Date.now();
     // İvme eşiği aşılırsa ve adımlar arasında en az 300ms varsa fiziksel adımı say
-    if (magnitude > stepThreshold && (now - lastStepTime) > 300) {
+    if (netMagnitude > stepThreshold && (now - lastStepTime) > 300) {
       state.timer.workoutSteps++;
       lastStepTime = now;
       

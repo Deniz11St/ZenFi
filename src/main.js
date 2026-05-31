@@ -50,7 +50,7 @@ window.setStepSource = (source) => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const state = {
   currentPage: 'home',
   stepSource: localStorage.getItem('zenfit_stepsource') || 'watch',
@@ -89,6 +89,17 @@ const state = {
     workoutCalories: 0.0
   },
   keepScreenAwake: JSON.parse(localStorage.getItem('zenfit_keepscreenawake')) || false,
+  voiceSettings: JSON.parse(localStorage.getItem('zenfit_voicesettings')) || {
+    enabled: true,
+    pitch: 0.8, // Tok/derin ses
+    rate: 0.85, // Yavaş/dingin konuşma
+    selectedVoice: ''
+  },
+  theme: localStorage.getItem('zenfit_theme') || 'bamboo',
+  pulseParams: JSON.parse(localStorage.getItem('zenfit_pulseparams')) || {
+    customMaxHR: 0, // 0 ise otomatik hesapla (220-yaş)
+    restHR: 70
+  },
   chat: [
     { role: 'sensei', text: 'Merhaba yolcu. Bugün bedenine ve ruhuna nasıl baktın?' }
   ]
@@ -107,6 +118,9 @@ state.plan.defaultDistance = state.plan.defaultDistance !== undefined ? parseFlo
 state.plan.defaultSpeed = state.plan.defaultSpeed !== undefined ? parseFloat(state.plan.defaultSpeed) : 9.0;
 state.googleFit = state.googleFit || { clientId: '', accessToken: '', isConnected: false };
 state.dailyLogs = state.dailyLogs || [];
+state.voiceSettings = state.voiceSettings || { enabled: true, pitch: 0.8, rate: 0.85, selectedVoice: '' };
+state.theme = state.theme || 'bamboo';
+state.pulseParams = state.pulseParams || { customMaxHR: 0, restHR: 70 };
 
 window.changeMonth = (delta) => {
   const d = state.calendarDate ? new Date(state.calendarDate) : new Date();
@@ -196,6 +210,9 @@ const saveState = () => {
   localStorage.setItem('zenfit_googlefit', JSON.stringify(state.googleFit));
   localStorage.setItem('zenfit_keepscreenawake', JSON.stringify(state.keepScreenAwake));
   localStorage.setItem('zenfit_stepsource', state.stepSource);
+  localStorage.setItem('zenfit_voicesettings', JSON.stringify(state.voiceSettings));
+  localStorage.setItem('zenfit_theme', state.theme);
+  localStorage.setItem('zenfit_pulseparams', JSON.stringify(state.pulseParams));
 };
 
 // --- UTILS ---
@@ -261,6 +278,187 @@ const getLatestEcgStatus = () => {
   const sortedLogs = [...state.dailyLogs].sort((a, b) => new Date(b.date) - new Date(a.date));
   const latestWithEcg = sortedLogs.find(l => l.ecgStatus);
   return latestWithEcg ? latestWithEcg.ecgStatus : null;
+};
+
+window.currentPlayingBtn = null;
+
+window.speakText = (text, btn = null) => {
+  if (!('speechSynthesis' in window)) {
+    console.warn("Speech Synthesis API desteklenmiyor.");
+    return;
+  }
+
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (window.currentPlayingBtn === btn && btn) {
+      btn.classList.remove('playing');
+      const wave = btn.parentElement.querySelector('.sound-wave');
+      if (wave) wave.classList.remove('active');
+      window.currentPlayingBtn = null;
+      return;
+    }
+  }
+
+  if (window.currentPlayingBtn) {
+    window.currentPlayingBtn.classList.remove('playing');
+    const wave = window.currentPlayingBtn.parentElement.querySelector('.sound-wave');
+    if (wave) wave.classList.remove('active');
+  }
+
+  if (!text) return;
+
+  const cleanText = text.replace(/\*\*?/g, '').replace(/__/g, '');
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  
+  utterance.pitch = parseFloat(state.voiceSettings.pitch) || 0.8;
+  utterance.rate = parseFloat(state.voiceSettings.rate) || 0.85;
+  utterance.lang = 'tr-TR';
+
+  const voices = window.speechSynthesis.getVoices();
+  if (state.voiceSettings.selectedVoice) {
+    const selected = voices.find(v => v.voiceURI === state.voiceSettings.selectedVoice);
+    if (selected) utterance.voice = selected;
+  } else {
+    const trVoice = voices.find(v => v.lang.includes('tr-TR'));
+    if (trVoice) utterance.voice = trVoice;
+  }
+
+  utterance.onstart = () => {
+    if (btn) {
+      btn.classList.add('playing');
+      const wave = btn.parentElement.querySelector('.sound-wave');
+      if (wave) wave.classList.add('active');
+      window.currentPlayingBtn = btn;
+    }
+  };
+
+  const handleEnd = () => {
+    if (btn) {
+      btn.classList.remove('playing');
+      const wave = btn.parentElement.querySelector('.sound-wave');
+      if (wave) wave.classList.remove('active');
+    }
+    if (window.currentPlayingBtn === btn) {
+      window.currentPlayingBtn = null;
+    }
+  };
+
+  utterance.onend = handleEnd;
+  utterance.onerror = handleEnd;
+
+  window.speechSynthesis.speak(utterance);
+};
+
+window.calculatePulseZones = () => {
+  const age = parseInt(state.profile.age) || 30;
+  const maxHR = parseInt(state.pulseParams.customMaxHR) || (220 - age);
+  const restHR = parseInt(state.pulseParams.restHR) || 70;
+  const hrr = maxHR - restHR;
+  
+  return {
+    maxHR,
+    restHR,
+    zones: [
+      { min: restHR + Math.round(hrr * 0.50), max: restHR + Math.round(hrr * 0.60) - 1, label: 'Toparlanma (Düşük)', class: 'blue' },
+      { min: restHR + Math.round(hrr * 0.60), max: restHR + Math.round(hrr * 0.70) - 1, label: 'Yağ Yakımı (Normal)', class: 'green' },
+      { min: restHR + Math.round(hrr * 0.70), max: restHR + Math.round(hrr * 0.80) - 1, label: 'Kardiyo/Aerobik (Orta)', class: 'yellow' },
+      { min: restHR + Math.round(hrr * 0.80), max: restHR + Math.round(hrr * 0.90) - 1, label: 'Anaerobik Eşik (Yüksek)', class: 'orange' },
+      { min: restHR + Math.round(hrr * 0.90), max: maxHR, label: 'Maksimum Efor (Çok Yüksek)', class: 'red' }
+    ]
+  };
+};
+
+window.getPulseZoneIndex = (hr) => {
+  if (!hr || hr < 40) return -1;
+  const data = window.calculatePulseZones();
+  if (hr < data.zones[0].min) return 0;
+  for (let i = 0; i < data.zones.length; i++) {
+    if (hr >= data.zones[i].min && hr <= data.zones[i].max) {
+      return i;
+    }
+  }
+  if (hr > data.maxHR) return 4;
+  return -1;
+};
+
+window.getPulseAdvice = (hr) => {
+  if (!hr || hr < 40) {
+    return {
+      title: "Kalp Atışı Bekleniyor",
+      desc: "Zanshin derin bir konsantrasyon halidir. Saatiniz veya nabız vericiniz bağlandığında, kalp ritminiz saniye saniye analiz edilerek buraya yansıtılacaktır. Dingin kalın, derin nefesler alın."
+    };
+  }
+  
+  const data = window.calculatePulseZones();
+  const zoneIndex = window.getPulseZoneIndex(hr);
+  
+  const advices = [
+    {
+      title: "💙 Isınma ve Toparlanma Koridoru (Düşük)",
+      desc: `Şu anki nabzınız **${hr} BPM**. Vücudunuz hafifçe ısınıyor veya sakinleşiyor. Kaslarınızda sakatlık riski sıfıra yakındır. Sensei der ki: "Fırtınadan önceki sessizlik gibi, yola yavaşça hazırlanın veya koşuyu bu hafif tempoda sonlandırarak bacaklarınızı nadasa bırakın."`
+    },
+    {
+      title: "💚 Yağ Yakımı ve Yaşam Enerjisi (Normal)",
+      desc: `Mükemmel Zen dengesi! Nabzınız **${hr} BPM** ile yağ yakımı koridorunda. Kalbiniz yorulmadan güçleniyor ve enerji deposu olarak yağ asitlerini tüketiyor. Sensei der ki: "Bu tempo senin dingin gücündür. Acele etme, bu ritimde kalırsan saatlerce yorulmadan yola devam edebilirsin."`
+    },
+    {
+      title: "💛 Kardiyo ve Akciğer Kapasitesi (Orta)",
+      desc: `Nabzınız **${hr} BPM** ile aerobik sınırlar içinde. Kalp kasınız büyüyor, akciğer hacminiz genişliyor. Dayanıklılığınız artıyor. Hafif nefes darlığı hissedebilirsiniz ancak bu kondisyon kazanmak için mükemmel bir tempodur. Sınırları kontrollü genişletin.`
+    },
+    {
+      title: "🧡 Anaerobik Dayanıklılık Sınırı (Yüksek)",
+      desc: `Dikkatli olun, nabzınız **${hr} BPM** seviyesinde! Vücudunuz oksijensiz enerji üretmeye başladı ve kaslarınızda laktik asit birikiyor. Kısa bir süre sonra bacaklarınızda yanma hissi başlayabilir. Sensei der ki: "Eğer profesyonel bir sprint çalışması yapmıyorsan, yavaşça hızını azalt. Kendini aşırı tüketmek disiplin değil, zihnin sabırsızlığıdır."`
+    },
+    {
+      title: "🚨 TEHLİKE! Maksimum Limit Aşımı (Çok Yüksek)",
+      desc: `**AŞIRI EFOR UYARISI!** Nabzınız **${hr} BPM** ile tehlikeli sınırı aşmış durumda! Kalbiniz üzerinde aşırı stres var. Oksijen yetersizliği nedeniyle baş dönmesi, ritim bozukluğu veya ani sakatlıklar yaşayabilirsiniz. **DERHAL hızınızı azaltın, koşuyu hafif yürüyüşe çevirin** ve dik durarak derin nefes alın. Bedeninizi ateşe atmayın!`
+    }
+  ];
+  
+  return advices[zoneIndex] || advices[0];
+};
+
+window.updateZanshinPulseUI = (hr) => {
+  const indicator = document.getElementById('live-pulse-indicator');
+  if (indicator) {
+    indicator.innerText = hr && hr >= 40 ? hr : '-';
+  }
+  
+  const badge = document.getElementById('advice-source-badge');
+  const isBTConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
+  if (badge) {
+    badge.innerText = isBTConnected ? 'SENSÖR AKTİF' : hr && hr >= 40 ? 'SİMÜLASYON AKTİF' : 'BAĞLANTI BEKLENİYOR';
+  }
+  
+  const zoneIndex = window.getPulseZoneIndex(hr);
+  
+  // LED Lambaları Güncelle
+  for (let i = 0; i < 5; i++) {
+    const led = document.getElementById(`led-${i}`);
+    if (led) {
+      if (i === zoneIndex) {
+        led.classList.add('active');
+      } else {
+        led.classList.remove('active');
+      }
+    }
+  }
+  
+  // Tavsiye Kutusu Arka Plan Parlaması ve İçeriğini Güncelle
+  const container = document.getElementById('pulse-advice-container');
+  if (container) {
+    container.classList.remove('zone-1', 'zone-2', 'zone-3', 'zone-4', 'zone-5');
+    if (zoneIndex >= 0) {
+      container.classList.add(`zone-${zoneIndex + 1}`);
+    }
+  }
+  
+  const advice = window.getPulseAdvice(hr);
+  const adviceTitle = document.getElementById('pulse-advice-title');
+  const adviceDesc = document.getElementById('pulse-advice-desc');
+  
+  if (adviceTitle) adviceTitle.innerText = advice.title;
+  if (adviceDesc) adviceDesc.innerText = advice.desc;
 };
 
 window.syncHeartHealthHome = async (btn) => {
@@ -531,6 +729,17 @@ const pages = {
   home: () => {
     const isBTConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
     
+    const activeHr = isBTConnected ? state.timer.heartRate : 0;
+    const activeZone = window.getPulseZoneIndex(activeHr);
+    
+    const ledBlueClass = activeZone === 0 ? 'active' : '';
+    const ledGreenClass = activeZone === 1 ? 'active' : '';
+    const ledYellowClass = activeZone === 2 ? 'active' : '';
+    const ledOrangeClass = activeZone === 3 ? 'active' : '';
+    const ledRedClass = activeZone === 4 ? 'active' : '';
+    
+    const advice = window.getPulseAdvice(activeHr);
+    
     return `
     <div class="dashboard-grid">
       <div class="glass-panel timer-card" style="grid-column: span 2; position: relative; padding: 2.5rem 1.5rem;">
@@ -539,17 +748,7 @@ const pages = {
         <!-- Kronometre Göstergesi -->
         <div class="timer-display" id="timer-val" style="margin-top: 0.5rem; font-size: 6.5rem;">${formatTime(state.timer.seconds)}</div>
 
-        <!-- Canlı Nabız Göstergesi (%100 Büyütülmüş Premium Sürüm) -->
-        <div class="live-pulse-container ${isBTConnected ? 'active' : ''}" style="display: inline-flex; align-items: center; padding: 0.8rem 1.8rem; border-radius: 100px; gap: 12px; margin: 0.8rem auto 1.5rem auto; border-color: rgba(255, 82, 82, 0.25); background: rgba(255, 82, 82, 0.08);">
-          <span class="live-heart ${isBTConnected ? 'beat' : 'silent'}" id="live-heart-icon" style="font-size: 2.2rem; animation-duration: ${isBTConnected ? (60 / state.timer.heartRate).toFixed(2) + 's' : '0s'};">❤️</span>
-          <span class="live-hr" id="live-hr-val" style="font-size: 2.4rem; color: #ff5252; text-shadow: 0 0 20px rgba(255, 82, 82, 0.4);">${isBTConnected ? state.timer.heartRate : '-'}</span>
-          <span class="live-unit" style="font-size: 1.1rem;">BPM</span>
-          <span class="live-device-status ${isBTConnected ? 'connected' : ''}" style="font-size: 0.85rem; padding: 0.25rem 0.85rem; border-radius: 30px;">
-            ${isBTConnected ? 'WATCH 8' : 'BAĞLI DEĞİL'}
-          </span>
-        </div>
-
-        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 0.5rem;">
+        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 0.5rem; margin-bottom: 1.5rem;">
           <button class="zen-btn" id="start-stop-btn">${state.timer.isRunning ? 'DURDUR' : 'BAŞLAT'}</button>
           <button class="zen-btn warrior" id="reset-btn">SIFIRLA</button>
         </div>
@@ -572,6 +771,40 @@ const pages = {
             <div style="font-size: 0.7rem; color: #ff5252; letter-spacing: 0.5px; text-transform: uppercase;">Egzersiz Kalori</div>
             <div id="live-calories-val" style="font-size: 1.3rem; font-weight: 500; margin-top: 0.25rem; color: white;">${Math.round(state.timer.workoutCalories)}</div>
             <div class="dimmed" style="font-size: 0.6rem; margin-top: 0.1rem;">kcal</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ZANSHIN - CANLI NABIZ FENERİ -->
+      <div class="glass-panel pulse-lantern-card" style="grid-column: span 2;">
+        <div class="pulse-lantern">
+          <h4 style="font-size: 0.55rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem; text-align: center; white-space: nowrap;">NABIZ FENERİ</h4>
+          
+          <div class="led-light led-red ${ledRedClass}" id="led-4" title="Maksimum Efor (%90+)">5</div>
+          <div class="led-light led-orange ${ledOrangeClass}" id="led-3" title="Anaerobik Eşik (%80-%90)">4</div>
+          <div class="led-light led-yellow ${ledYellowClass}" id="led-2" title="Kardiyo / Dayanıklılık (%70-%80)">3</div>
+          <div class="led-light led-green ${ledGreenClass}" id="led-1" title="Yağ Yakımı (%60-%70)">2</div>
+          <div class="led-light led-blue ${ledBlueClass}" id="led-0" title="Isınma / Toparlanma (%50-%60)">1</div>
+        </div>
+        
+        <div class="pulse-advice-box zone-${activeZone + 1}" id="pulse-advice-container">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.6rem;">
+            <h3 style="font-weight: 300; font-size: 1.1rem; color: var(--primary-sage); margin: 0; display: flex; align-items: center; gap: 8px;">
+              🧘‍♂️ ZANSHIN <span style="font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 20px; background: rgba(255,255,255,0.05); color: var(--text-dim);" id="advice-source-badge">${isBTConnected ? 'SENSÖR AKTİF' : 'BAĞLANTI BEKLENİYOR'}</span>
+            </h3>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="live-pulse-indicator" style="font-size: 1.8rem; font-weight: 600; color: #ff5252; text-shadow: 0 0 10px rgba(255, 82, 82, 0.3); font-variant-numeric: tabular-nums;">
+                ${isBTConnected ? state.timer.heartRate : '-'}
+              </span>
+              <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">BPM</span>
+            </div>
+          </div>
+          
+          <div id="pulse-advice-title" class="pulse-advice-title">
+            ${advice.title}
+          </div>
+          <div id="pulse-advice-desc" class="pulse-advice-desc">
+            ${advice.desc}
           </div>
         </div>
       </div>
@@ -845,9 +1078,34 @@ const pages = {
       <p class="dimmed" style="margin-bottom: 2rem;">Dinginlikte güç, harekette huzur bul.</p>
       
       <div id="chat-box" style="flex: 1; width: 100%; overflow-y: auto; padding: 1.5rem; background: rgba(0,0,0,0.2); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
-        ${state.chat.map(m => `
-          <div class="message ${m.role}">${m.text}</div>
-        `).join('')}
+        ${state.chat.map(m => {
+          if (m.role === 'sensei') {
+            const escapedText = m.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            return `
+              <div class="message sensei" style="position: relative; display: flex; flex-direction: column; gap: 4px; align-self: flex-start; width: 80%;">
+                <div class="message-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                  <span style="font-size: 0.7rem; font-weight: 600; color: var(--bg-dark); opacity: 0.65; letter-spacing: 0.5px;">SENSEI</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <button class="voice-btn" onclick="window.speakText('${escapedText}', this)" title="Seslendir" style="border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; width: 24px; height: 24px; border-radius: 50%; background: rgba(18, 20, 18, 0.05);">🔊</button>
+                    <div class="sound-wave">
+                      <span></span><span></span><span></span><span></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="message-body" style="font-weight: 300; font-size: 0.9rem; line-height: 1.5;">${m.text}</div>
+              </div>
+            `;
+          } else {
+            return `
+              <div class="message user" style="align-self: flex-end; width: 80%;">
+                <div class="message-header" style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+                  <span style="font-size: 0.7rem; font-weight: 600; color: var(--primary-sage); opacity: 0.8; letter-spacing: 0.5px;">SAVAŞÇI</span>
+                </div>
+                <div class="message-body" style="font-weight: 300; font-size: 0.9rem; line-height: 1.5;">${m.text}</div>
+              </div>
+            `;
+          }
+        }).join('')}
       </div>
       
       <div style="display: flex; gap: 1rem; width: 100%; margin-top: 1.5rem;">
@@ -877,6 +1135,15 @@ const pages = {
   `,
   settings: () => {
     const isBTConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
+    
+    const voices = (window.speechSynthesis && typeof window.speechSynthesis.getVoices === 'function') ? window.speechSynthesis.getVoices() : [];
+    const trVoices = voices.filter(v => v.lang.includes('tr-TR'));
+    let voiceOptions = '<option value="">Varsayılan Türkçe Ses</option>';
+    trVoices.forEach(v => {
+      const isSelected = state.voiceSettings.selectedVoice === v.voiceURI ? 'selected' : '';
+      voiceOptions += `<option value="${v.voiceURI}" ${isSelected}>${v.name}</option>`;
+    });
+
     return `
     <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
       <div class="glass-panel" style="padding: 2rem;">
@@ -1003,6 +1270,111 @@ const pages = {
         </div>
       </div>
 
+      <!-- SENSEI SES AYARLARI -->
+      <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3>SENSEI SES AYARLARI</h3>
+        <p class="dimmed" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; flex: 1;">
+          Sensei'nin bilgece yanıtlarını sesli dinlemek için bu özelliği kullanın. Ses tonu tokluğunu (pitch) ve konuşma hızını (rate) dinginliğinize göre özelleştirebilirsiniz.
+        </p>
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding: 0.8rem 1rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+          <span style="font-size: 0.85rem; font-weight: 500; color: white;">Sesli Yanıtı Aktif Et</span>
+          <div class="zen-switch ${state.voiceSettings.enabled ? 'active' : ''}" onclick="window.toggleVoiceEnabled(this)" style="position: relative; width: 55px; height: 28px; background: ${state.voiceSettings.enabled ? 'var(--primary-sage)' : 'rgba(255,255,255,0.08)'}; border: 1px solid ${state.voiceSettings.enabled ? 'var(--primary-sage)' : 'var(--glass-border)'}; border-radius: 20px; cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div class="zen-switch-handle" style="position: absolute; top: 3px; left: ${state.voiceSettings.enabled ? '29px' : '4px'}; width: 20px; height: 20px; background: white; border-radius: 50%; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>
+          </div>
+        </div>
+
+        <div class="slider-group" style="margin-top: 1rem;">
+          <label style="font-size: 0.8rem; color: var(--text-silk); display: flex; justify-content: space-between;">
+            <span>Konuşma Hızı (Rate)</span>
+            <span id="rate-val-label" class="dimmed" style="font-size: 0.75rem;">${state.voiceSettings.rate}x</span>
+          </label>
+          <div class="slider-container" style="margin-top: 0.4rem;">
+            <input type="range" id="voice-rate" min="0.5" max="1.5" step="0.05" value="${state.voiceSettings.rate}">
+          </div>
+        </div>
+
+        <div class="slider-group" style="margin-top: 1rem;">
+          <label style="font-size: 0.8rem; color: var(--text-silk); display: flex; justify-content: space-between;">
+            <span>Ses Tokluğu (Pitch)</span>
+            <span id="pitch-val-label" class="dimmed" style="font-size: 0.75rem;">${state.voiceSettings.pitch}x</span>
+          </label>
+          <div class="slider-container" style="margin-top: 0.4rem;">
+            <input type="range" id="voice-pitch" min="0.5" max="1.5" step="0.05" value="${state.voiceSettings.pitch}">
+          </div>
+        </div>
+
+        <div class="input-group" style="margin-top: 1rem; margin-bottom: 1rem;">
+          <label style="font-size: 0.8rem; color: var(--text-silk);">Türkçe Ses Seçimi</label>
+          <select id="voice-select" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 0.8rem; color: white; outline: none; font-family: inherit; width: 100%; height: 50px; font-size: 0.85rem; margin-top: 0.4rem; cursor: pointer;">
+            ${voiceOptions}
+          </select>
+        </div>
+
+        <button type="button" class="zen-btn warrior" id="test-voice-btn" style="width: 100%; padding: 0.7rem; font-size: 0.75rem;">🔊 SESİ TEST ET</button>
+      </div>
+
+      <!-- ZEN TEMALARI -->
+      <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3>ZEN TEMALARI</h3>
+        <p class="dimmed" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; flex: 1;">
+          Uygulama atmosferini ve renk tonunu değiştirmek için dingin bir renk paleti seçin. Seçilen tema tüm arayüze anında yansıtılacaktır.
+        </p>
+        
+        <div class="theme-selector-grid">
+          <div class="theme-card-btn ${state.theme === 'bamboo' ? 'active' : ''}" onclick="window.changeTheme('bamboo')">
+            <div class="theme-preview-dots">
+              <div class="theme-dot" style="background: #8BA888;"></div>
+              <div class="theme-dot" style="background: #121412;"></div>
+            </div>
+            <span class="theme-title">Bambu Yeşili</span>
+          </div>
+
+          <div class="theme-card-btn ${state.theme === 'sakura' ? 'active' : ''}" onclick="window.changeTheme('sakura')">
+            <div class="theme-preview-dots">
+              <div class="theme-dot" style="background: #E8A7A1;"></div>
+              <div class="theme-dot" style="background: #191213;"></div>
+            </div>
+            <span class="theme-title">Sakura Pembesi</span>
+          </div>
+
+          <div class="theme-card-btn ${state.theme === 'midnight' ? 'active' : ''}" onclick="window.changeTheme('midnight')">
+            <div class="theme-preview-dots">
+              <div class="theme-dot" style="background: #5E97F6;"></div>
+              <div class="theme-dot" style="background: #0D1117;"></div>
+            </div>
+            <span class="theme-title">Derin Gece</span>
+          </div>
+
+          <div class="theme-card-btn ${state.theme === 'sand' ? 'active' : ''}" onclick="window.changeTheme('sand')">
+            <div class="theme-preview-dots">
+              <div class="theme-dot" style="background: #D2B48C;"></div>
+              <div class="theme-dot" style="background: #1A1612;"></div>
+            </div>
+            <span class="theme-title">Çöl Kumu</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- NABIZ PARAMETRELERİ -->
+      <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3>NABIZ PARAMETRELERİ</h3>
+        <p class="dimmed" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; flex: 1;">
+          Zanshin Nabız Feneri bölgelerinin hesaplanması için dinlenik ve maksimum kalp ritminizi ayarlayın. Maksimum nabız boş bırakılırsa yaşınıza göre <span style="color: var(--primary-sage); font-weight: 500;">(220 - Yaş)</span> otomatik hesaplanır.
+        </p>
+        <form id="pulse-params-form" style="margin-top: 1.5rem;">
+          <div class="input-group">
+            <label>Dinlenik Nabız (BPM)</label>
+            <input type="number" id="set-rest-hr" value="${state.pulseParams.restHR || 70}" min="30" max="120" required>
+          </div>
+          <div class="input-group">
+            <label>Manuel Maksimum Nabız (BPM)</label>
+            <input type="number" id="set-max-hr" value="${state.pulseParams.customMaxHR || ''}" placeholder="Otomatik: ${220 - (state.profile.age || 30)}" min="100" max="250">
+          </div>
+          <button type="submit" class="zen-btn warrior" style="width: 100%;">AYARLARI KAYDET</button>
+        </form>
+      </div>
+
       <div class="glass-panel" style="padding: 2rem; grid-column: 1 / -1;">
         <h3>KİLO DEĞİŞİMİ</h3>
         <canvas id="weightChart" style="width: 100%; height: 200px;"></canvas>
@@ -1038,6 +1410,17 @@ const updateNav = () => {
 
 const initChart = () => {
   const ctx = document.getElementById('weightChart').getContext('2d');
+  
+  const themeColors = {
+    bamboo: { border: '#8BA888', bg: 'rgba(139, 168, 136, 0.1)' },
+    sakura: { border: '#E8A7A1', bg: 'rgba(232, 167, 161, 0.1)' },
+    midnight: { border: '#5E97F6', bg: 'rgba(94, 151, 246, 0.1)' },
+    sand: { border: '#D2B48C', bg: 'rgba(210, 180, 140, 0.1)' }
+  };
+  
+  const currentTheme = state.theme || 'bamboo';
+  const colors = themeColors[currentTheme] || themeColors.bamboo;
+
   new Chart(ctx, {
     type: 'line',
     data: {
@@ -1045,8 +1428,8 @@ const initChart = () => {
       datasets: [{
         label: 'Kilo (kg)',
         data: state.profile.weightHistory.map(h => h.weight),
-        borderColor: '#8BA888',
-        backgroundColor: 'rgba(139, 168, 136, 0.1)',
+        borderColor: colors.border,
+        backgroundColor: colors.bg,
         tension: 0.4,
         fill: true
       }]
@@ -1160,6 +1543,19 @@ const attachEvents = () => {
     };
   }
 
+  // Nabız Parametreleri Formu
+  const pulseParamsForm = document.getElementById('pulse-params-form');
+  if (pulseParamsForm) {
+    pulseParamsForm.onsubmit = (e) => {
+      e.preventDefault();
+      state.pulseParams.restHR = parseInt(document.getElementById('set-rest-hr').value) || 70;
+      state.pulseParams.customMaxHR = parseInt(document.getElementById('set-max-hr').value) || 0;
+      saveState();
+      alert('Nabız parametreleri başarıyla kaydedildi!');
+      render();
+    };
+  }
+
   // Update App
   const checkUpdateBtn = document.getElementById('check-update-btn');
   if (checkUpdateBtn) {
@@ -1265,8 +1661,72 @@ const attachEvents = () => {
         state.chat.push({ role: 'sensei', text: reply });
         render();
         if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+
+        if (state.voiceSettings.enabled) {
+          setTimeout(() => {
+            const chatMessages = document.querySelectorAll('#chat-box .message.sensei');
+            if (chatMessages.length > 0) {
+              const lastMsg = chatMessages[chatMessages.length - 1];
+              const btn = lastMsg.querySelector('.voice-btn');
+              window.speakText(reply, btn);
+            } else {
+              window.speakText(reply);
+            }
+          }, 100);
+        }
       }, 1000);
     };
+  }
+
+  // Sensei Ses Ayarları Event Listener'ları
+  if (state.currentPage === 'settings') {
+    const rateInput = document.getElementById('voice-rate');
+    const pitchInput = document.getElementById('voice-pitch');
+    const voiceSelect = document.getElementById('voice-select');
+    const testBtn = document.getElementById('test-voice-btn');
+
+    if (rateInput) {
+      rateInput.oninput = (e) => {
+        const val = parseFloat(e.target.value).toFixed(2);
+        const lbl = document.getElementById('rate-val-label');
+        if (lbl) lbl.innerText = `${val}x`;
+      };
+      rateInput.onchange = (e) => {
+        state.voiceSettings.rate = parseFloat(e.target.value);
+        saveState();
+      };
+    }
+
+    if (pitchInput) {
+      pitchInput.oninput = (e) => {
+        const val = parseFloat(e.target.value).toFixed(2);
+        const lbl = document.getElementById('pitch-val-label');
+        if (lbl) lbl.innerText = `${val}x`;
+      };
+      pitchInput.onchange = (e) => {
+        state.voiceSettings.pitch = parseFloat(e.target.value);
+        saveState();
+      };
+    }
+
+    if (voiceSelect) {
+      voiceSelect.onchange = (e) => {
+        state.voiceSettings.selectedVoice = e.target.value;
+        saveState();
+      };
+    }
+
+    if (testBtn) {
+      testBtn.onclick = () => {
+        const testQuotes = [
+          "Bedenini dinlendir evlat, kasların koşarken değil dinlenirken gelişir.",
+          "Savaşçı, zihnindeki fırtınaları dindir ve sadece nefesine odaklan.",
+          "Disiplin dinginlik getirir, hareket ise huzur. Yola sadık kal."
+        ];
+        const randomQuote = testQuotes[Math.floor(Math.random() * testQuotes.length)];
+        window.speakText(randomQuote, testBtn);
+      };
+    }
   }
 };
 
@@ -1293,37 +1753,41 @@ const toggleTimer = () => {
       const val = document.getElementById('timer-val');
       if (val) val.innerText = formatTime(state.timer.seconds);
       
-      // Bluetooth bağlıysa anlık nabzı güncelle, bağlı değilse boş (-) bırak
-      const hrVal = document.getElementById('live-hr-val');
       const isConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
-      if (hrVal) hrVal.innerText = isConnected ? state.timer.heartRate : '-';
       
-      // GERÇEK Nabız-Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
-      if (isConnected) {
-        const hr = state.timer.heartRate;
-        const weight = parseFloat(state.profile.weight) || 80;
-        const age = parseFloat(state.profile.age) || 30;
-        const isMale = state.profile.gender === 'Erkek';
-        
-        let kcalPerMin = 0;
-        if (isMale) {
-          kcalPerMin = (-55.0969 + (0.6309 * hr) + (0.1988 * weight) + (0.2017 * age)) / 4.184;
+      if (!isConnected) {
+        if (state.timer.seconds < 90) {
+          state.timer.heartRate = 72 + Math.round((state.timer.seconds / 90) * 63);
         } else {
-          kcalPerMin = (-20.4022 + (0.4472 * hr) - (0.1263 * weight) + (0.0740 * age)) / 4.184;
+          const delta = Math.sin(state.timer.seconds * 0.1) * 3 + (Math.random() * 2 - 1);
+          state.timer.heartRate = Math.round(135 + delta);
         }
-        if (kcalPerMin < 0) kcalPerMin = 0;
-        
-        state.timer.workoutCalories += kcalPerMin / 60; // saniyede harcanan fizyolojik kalori
-        
-        // Saatten Gerçek Adım Sayar Entegrasyonu:
-        // YALNIZCA Adım Sensör Kaynağı "Saat" ise saatten gelen verileri oku!
-        if (state.stepSource === 'watch') {
-          const liveCadence = state.timer.liveCadence || 0;
-          if (liveCadence > 0) {
-            const stepsPerSec = liveCadence / 60;
-            state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
-            state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
-          }
+      }
+      
+      window.updateZanshinPulseUI(state.timer.heartRate);
+      
+      // Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
+      const hr = state.timer.heartRate;
+      const weight = parseFloat(state.profile.weight) || 80;
+      const age = parseFloat(state.profile.age) || 30;
+      const isMale = state.profile.gender === 'Erkek';
+      
+      let kcalPerMin = 0;
+      if (isMale) {
+        kcalPerMin = (-55.0969 + (0.6309 * hr) + (0.1988 * weight) + (0.2017 * age)) / 4.184;
+      } else {
+        kcalPerMin = (-20.4022 + (0.4472 * hr) - (0.1263 * weight) + (0.0740 * age)) / 4.184;
+      }
+      if (kcalPerMin < 0) kcalPerMin = 0;
+      
+      state.timer.workoutCalories += kcalPerMin / 60;
+      
+      if (isConnected && state.stepSource === 'watch') {
+        const liveCadence = state.timer.liveCadence || 0;
+        if (liveCadence > 0) {
+          const stepsPerSec = liveCadence / 60;
+          state.timer.workoutStepsDecimal = (state.timer.workoutStepsDecimal || 0) + stepsPerSec;
+          state.timer.workoutSteps = Math.round(state.timer.workoutStepsDecimal);
         }
       }
       
@@ -1509,15 +1973,7 @@ const handleHRUpdate = (event) => {
   }
   
   state.timer.heartRate = heartRate;
-  
-  const hrVal = document.getElementById('live-hr-val');
-  if (hrVal) hrVal.innerText = heartRate;
-  
-  const heartIcon = document.getElementById('live-heart-icon');
-  if (heartIcon) {
-    const duration = (60 / heartRate).toFixed(2);
-    heartIcon.style.animationDuration = `${duration}s`;
-  }
+  window.updateZanshinPulseUI(heartRate);
 };
 
 const handleRSCUpdate = (event) => {
@@ -1550,6 +2006,7 @@ const onDisconnectedHR = () => {
   state.timer.heartRate = 72;
   state.timer.liveCadence = 0;
   saveState();
+  window.updateZanshinPulseUI(0);
   alert('Samsung Watch 8 (Bluetooth) bağlantısı kesildi.');
   render();
 };
@@ -1676,6 +2133,53 @@ window.toggleScreenWakeLock = async (switchEl) => {
   }
 };
 
+window.toggleVoiceEnabled = (switchEl) => {
+  state.voiceSettings.enabled = !state.voiceSettings.enabled;
+  saveState();
+
+  const handle = switchEl.querySelector('.zen-switch-handle');
+  if (state.voiceSettings.enabled) {
+    switchEl.classList.add('active');
+    switchEl.style.background = 'var(--primary-sage)';
+    switchEl.style.borderColor = 'var(--primary-sage)';
+    if (handle) handle.style.left = '29px';
+    alert("Sensei'nin sesli yanıt vermesi aktif edildi!");
+  } else {
+    switchEl.classList.remove('active');
+    switchEl.style.background = 'rgba(255,255,255,0.08)';
+    switchEl.style.borderColor = 'var(--glass-border)';
+    if (handle) handle.style.left = '4px';
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    alert("Sensei'nin sesli yanıt vermesi kapatıldı.");
+  }
+};
+
+window.changeTheme = (themeName) => {
+  document.body.classList.remove('theme-bamboo', 'theme-sakura', 'theme-midnight', 'theme-sand');
+  document.body.classList.add(`theme-${themeName}`);
+  state.theme = themeName;
+  saveState();
+  render();
+};
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    if (state.currentPage === 'settings') {
+      const voiceSelect = document.getElementById('voice-select');
+      if (voiceSelect) {
+        const voices = window.speechSynthesis.getVoices();
+        const trVoices = voices.filter(v => v.lang.includes('tr-TR'));
+        let voiceOptions = '<option value="">Varsayılan Türkçe Ses</option>';
+        trVoices.forEach(v => {
+          const isSelected = state.voiceSettings.selectedVoice === v.voiceURI ? 'selected' : '';
+          voiceOptions += `<option value="${v.voiceURI}" ${isSelected}>${v.name}</option>`;
+        });
+        voiceSelect.innerHTML = voiceOptions;
+      }
+    }
+  };
+}
+
 // Sekme görünürlüğü değiştiğinde (örneğin arka plana gidip gelindiğinde) Wake Lock'u kurtaralım
 document.addEventListener('visibilitychange', async () => {
   if (state.keepScreenAwake && state.timer.isRunning && document.visibilityState === 'visible') {
@@ -1684,4 +2188,8 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 // Initialize
+if (state.theme) {
+  document.body.classList.remove('theme-bamboo', 'theme-sakura', 'theme-midnight', 'theme-sand');
+  document.body.classList.add(`theme-${state.theme}`);
+}
 render();

@@ -914,12 +914,14 @@ body.theme-sand {
     padding: 1.5rem 1rem;
   }
   .pulse-lantern {
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     min-width: 100%;
+    gap: 1.2rem;
   }
   .led-row {
-    justify-content: center;
-    gap: 0.6rem;
+    justify-content: flex-start;
+    gap: 0.8rem;
   }
   .led-light {
     width: 50px;

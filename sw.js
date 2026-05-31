@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zenfit-v1.8.4';
+const CACHE_NAME = 'zenfit-v1.8.5';
 const ASSETS = [
   './',
   './index.html',

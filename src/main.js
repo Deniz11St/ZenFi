@@ -50,7 +50,7 @@ window.setStepSource = (source) => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.8.4';
+const APP_VERSION = '1.8.5';
 const state = {
   currentPage: 'home',
   stepSource: localStorage.getItem('zenfit_stepsource') || 'watch',
@@ -1403,7 +1403,10 @@ const pages = {
       <p style="font-size: 0.85rem; color: var(--primary-sage); margin-top: 0.8rem; font-weight: 300; letter-spacing: 0.5px;">
         Bu uygulama <span style="font-weight: 600; color: white;">Deniz Demirci</span> tarafından geliştirilmiştir.
       </p>
-      <button id="check-update-btn" class="zen-btn warrior" style="width: 100%; max-width: 300px; margin-top: 1rem;">GÜNCELLEMEYİ DENETLE</button>
+      <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.2rem; flex-wrap: wrap; max-width: 500px; margin-left: auto; margin-right: auto;">
+        <button id="check-update-btn" class="zen-btn" style="flex: 1; min-width: 200px; font-size: 0.8rem; padding: 0.8rem;">GÜNCELLEMEYİ DENETLE</button>
+        <button id="force-update-btn" class="zen-btn warrior" style="flex: 1; min-width: 200px; font-size: 0.8rem; padding: 0.8rem;">ZORLA GÜNCELLE (CTRL+F5)</button>
+      </div>
     </div>
     `;
   }
@@ -1608,6 +1611,32 @@ const attachEvents = () => {
         console.error('Güncelleme hatası:', err);
         alert('Güncelleme denetlenirken bir hata oluştu. Bağlantınızı kontrol edin.');
         checkUpdateBtn.innerText = 'GÜNCELLEMEYİ DENETLE';
+      }
+    };
+  }
+
+  // Force Update App
+  const forceUpdateBtn = document.getElementById('force-update-btn');
+  if (forceUpdateBtn) {
+    forceUpdateBtn.onclick = async () => {
+      const wantForce = confirm('Uygulama önbelleği ve servis işçileri tamamen silinecek, sayfa en baştan indirilecektir. Verileriniz (antrenman geçmişiniz vb.) silinmez. Devam etmek istiyor musunuz?');
+      if (wantForce) {
+        forceUpdateBtn.innerText = 'GÜNCELLENİYOR...';
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (let reg of regs) await reg.unregister();
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            for (let key of keys) await caches.delete(key);
+          }
+          alert('Önbellek başarıyla temizlendi! Uygulama şimdi en baştan yükleniyor...');
+          window.location.reload(true);
+        } catch (err) {
+          console.error('Önbellek silme hatası:', err);
+          window.location.reload(true);
+        }
       }
     };
   }

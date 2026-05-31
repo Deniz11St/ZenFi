@@ -459,6 +459,20 @@ window.updateZanshinPulseUI = (hr) => {
   
   if (adviceTitle) adviceTitle.innerText = advice.title;
   if (adviceDesc) adviceDesc.innerText = advice.desc;
+
+  const heartIcon = document.getElementById('live-heart-icon');
+  if (heartIcon) {
+    if (hr && hr >= 40) {
+      heartIcon.classList.remove('silent');
+      heartIcon.classList.add('beat');
+      const duration = (60 / hr).toFixed(2);
+      heartIcon.style.animationDuration = `${duration}s`;
+    } else {
+      heartIcon.classList.remove('beat');
+      heartIcon.classList.add('silent');
+      heartIcon.style.animationDuration = '0s';
+    }
+  }
 };
 
 window.syncHeartHealthHome = async (btn) => {
@@ -778,7 +792,7 @@ const pages = {
       <!-- ZANSHIN - CANLI NABIZ FENERİ -->
       <div class="glass-panel pulse-lantern-card" style="grid-column: span 2;">
         <div class="pulse-lantern">
-          <h4 style="font-size: 0.55rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem; text-align: center; white-space: nowrap;">NABIZ FENERİ</h4>
+          <h4 style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 0.8rem; text-align: center; white-space: nowrap;">NABIZ FENERİ</h4>
           
           <div class="led-light led-red ${ledRedClass}" id="led-4" title="Maksimum Efor (%90+)">5</div>
           <div class="led-light led-orange ${ledOrangeClass}" id="led-3" title="Anaerobik Eşik (%80-%90)">4</div>
@@ -793,6 +807,7 @@ const pages = {
               🧘‍♂️ ZANSHIN <span style="font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 20px; background: rgba(255,255,255,0.05); color: var(--text-dim);" id="advice-source-badge">${isBTConnected ? 'SENSÖR AKTİF' : 'BAĞLANTI BEKLENİYOR'}</span>
             </h3>
             <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="live-heart ${isBTConnected ? 'beat' : 'silent'}" id="live-heart-icon" style="font-size: 1.6rem; animation-duration: ${isBTConnected ? (60 / state.timer.heartRate).toFixed(2) + 's' : '0s'};">❤️</span>
               <span id="live-pulse-indicator" style="font-size: 1.8rem; font-weight: 600; color: #ff5252; text-shadow: 0 0 10px rgba(255, 82, 82, 0.3); font-variant-numeric: tabular-nums;">
                 ${isBTConnected ? state.timer.heartRate : '-'}
               </span>

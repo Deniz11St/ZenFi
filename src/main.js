@@ -50,7 +50,7 @@ window.setStepSource = (source) => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 const state = {
   currentPage: 'home',
   stepSource: localStorage.getItem('zenfit_stepsource') || 'watch',

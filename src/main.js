@@ -50,7 +50,7 @@ window.setStepSource = (source) => {
 };
 
 // --- STATE MANAGEMENT ---
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.8.4';
 const state = {
   currentPage: 'home',
   stepSource: localStorage.getItem('zenfit_stepsource') || 'watch',
@@ -82,7 +82,7 @@ const state = {
     isRunning: false,
     seconds: 0,
     interval: null,
-    heartRate: 72,
+    heartRate: 0,
     liveCadence: 0,
     workoutSteps: 0,
     workoutStepsDecimal: 0,
@@ -1772,29 +1772,27 @@ const toggleTimer = () => {
       const isConnected = window.bluetoothDeviceHR && window.bluetoothDeviceHR.gatt.connected;
       
       if (!isConnected) {
-        if (state.timer.seconds < 90) {
-          state.timer.heartRate = 72 + Math.round((state.timer.seconds / 90) * 63);
-        } else {
-          const delta = Math.sin(state.timer.seconds * 0.1) * 3 + (Math.random() * 2 - 1);
-          state.timer.heartRate = Math.round(135 + delta);
-        }
+        state.timer.heartRate = 0;
       }
       
       window.updateZanshinPulseUI(state.timer.heartRate);
       
       // Kalori Entegrasyonu (Keytel Fizyolojik Kalori Formülü)
       const hr = state.timer.heartRate;
-      const weight = parseFloat(state.profile.weight) || 80;
-      const age = parseFloat(state.profile.age) || 30;
-      const isMale = state.profile.gender === 'Erkek';
-      
       let kcalPerMin = 0;
-      if (isMale) {
-        kcalPerMin = (-55.0969 + (0.6309 * hr) + (0.1988 * weight) + (0.2017 * age)) / 4.184;
-      } else {
-        kcalPerMin = (-20.4022 + (0.4472 * hr) - (0.1263 * weight) + (0.0740 * age)) / 4.184;
+      
+      if (hr > 40) { // Sadece geçerli bir nabız değeri olduğunda kalori hesapla
+        const weight = parseFloat(state.profile.weight) || 80;
+        const age = parseFloat(state.profile.age) || 30;
+        const isMale = state.profile.gender === 'Erkek';
+        
+        if (isMale) {
+          kcalPerMin = (-55.0969 + (0.6309 * hr) + (0.1988 * weight) + (0.2017 * age)) / 4.184;
+        } else {
+          kcalPerMin = (-20.4022 + (0.4472 * hr) - (0.1263 * weight) + (0.0740 * age)) / 4.184;
+        }
+        if (kcalPerMin < 0) kcalPerMin = 0;
       }
-      if (kcalPerMin < 0) kcalPerMin = 0;
       
       state.timer.workoutCalories += kcalPerMin / 60;
       
@@ -2019,7 +2017,7 @@ const onDisconnectedHR = () => {
   window.bluetoothDeviceHR = null;
   window.heartRateCharacteristicHR = null;
   window.rscCharacteristicHR = null;
-  state.timer.heartRate = 72;
+  state.timer.heartRate = 0;
   state.timer.liveCadence = 0;
   saveState();
   window.updateZanshinPulseUI(0);

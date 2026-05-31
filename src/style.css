@@ -804,20 +804,27 @@ body.theme-sand {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  align-items: center;
-  min-width: 70px;
+  align-items: flex-start;
+  min-width: 380px;
+}
+
+.led-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.8rem;
+  width: 100%;
 }
 
 .led-light {
-  width: 44px;
-  height: 44px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.03);
   border: 2px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-dim);
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -828,35 +835,35 @@ body.theme-sand {
   background: #5E97F6;
   border-color: #7da5fa;
   color: #121412;
-  box-shadow: 0 0 15px rgba(94, 151, 246, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
+  box-shadow: 0 0 22px rgba(94, 151, 246, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
 }
 
 .led-light.led-green.active {
   background: #4caf50;
   border-color: #6fc272;
   color: #121412;
-  box-shadow: 0 0 15px rgba(76, 175, 80, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
+  box-shadow: 0 0 22px rgba(76, 175, 80, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
 }
 
 .led-light.led-yellow.active {
   background: #ffeb3b;
   border-color: #ffef62;
   color: #121412;
-  box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
+  box-shadow: 0 0 22px rgba(255, 235, 59, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
 }
 
 .led-light.led-orange.active {
   background: #ff9800;
   border-color: #ffad33;
   color: #121412;
-  box-shadow: 0 0 15px rgba(255, 152, 0, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
+  box-shadow: 0 0 22px rgba(255, 152, 0, 0.8), inset 0 2px 2px rgba(255,255,255,0.4);
 }
 
 .led-light.led-red.active {
   background: #f44336;
   border-color: #f6685e;
   color: #ffffff;
-  box-shadow: 0 0 20px rgba(244, 67, 54, 0.9), inset 0 2px 2px rgba(255,255,255,0.4);
+  box-shadow: 0 0 28px rgba(244, 67, 54, 0.9), inset 0 2px 2px rgba(255,255,255,0.4);
   animation: led-alert-blink 0.8s infinite alternate;
 }
 
@@ -907,10 +914,17 @@ body.theme-sand {
     padding: 1.5rem 1rem;
   }
   .pulse-lantern {
-    flex-direction: row;
+    align-items: center;
+    min-width: 100%;
+  }
+  .led-row {
     justify-content: center;
-    width: 100%;
     gap: 0.6rem;
+  }
+  .led-light {
+    width: 50px;
+    height: 50px;
+    font-size: 1rem;
   }
   .pulse-advice-box {
     width: 100%;

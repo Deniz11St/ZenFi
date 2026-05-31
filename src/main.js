@@ -792,13 +792,14 @@ const pages = {
       <!-- ZANSHIN - CANLI NABIZ FENERİ -->
       <div class="glass-panel pulse-lantern-card" style="grid-column: span 2;">
         <div class="pulse-lantern">
-          <h4 style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 0.8rem; text-align: center; white-space: nowrap;">NABIZ FENERİ</h4>
-          
-          <div class="led-light led-red ${ledRedClass}" id="led-4" title="Maksimum Efor (%90+)">5</div>
-          <div class="led-light led-orange ${ledOrangeClass}" id="led-3" title="Anaerobik Eşik (%80-%90)">4</div>
-          <div class="led-light led-yellow ${ledYellowClass}" id="led-2" title="Kardiyo / Dayanıklılık (%70-%80)">3</div>
-          <div class="led-light led-green ${ledGreenClass}" id="led-1" title="Yağ Yakımı (%60-%70)">2</div>
-          <div class="led-light led-blue ${ledBlueClass}" id="led-0" title="Isınma / Toparlanma (%50-%60)">1</div>
+          <h4 style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem; width: 100%; text-align: left;">NABIZ FENERİ</h4>
+          <div class="led-row">
+            <div class="led-light led-blue ${ledBlueClass}" id="led-0" title="Isınma / Toparlanma (%50-%60)">1</div>
+            <div class="led-light led-green ${ledGreenClass}" id="led-1" title="Yağ Yakımı (%60-%70)">2</div>
+            <div class="led-light led-yellow ${ledYellowClass}" id="led-2" title="Kardiyo / Dayanıklılık (%70-%80)">3</div>
+            <div class="led-light led-orange ${ledOrangeClass}" id="led-3" title="Anaerobik Eşik (%80-%90)">4</div>
+            <div class="led-light led-red ${ledRedClass}" id="led-4" title="Maksimum Efor (%90+)">5</div>
+          </div>
         </div>
         
         <div class="pulse-advice-box zone-${activeZone + 1}" id="pulse-advice-container">
